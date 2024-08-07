@@ -18,7 +18,10 @@ brew install argocd
 1. Port Forwarding
 
 Simplest and easiest way to connect to the API server without exposing the service is by using Kubectl port-forwarding.
-
+```bash
+kubectl port-forward svc/argocd-server -n argocd 4000:443
+```
+OR
 ```bash
 POD_NAME=$(kubectl get pods -n argocd | grep "^argocd-server-" | cut -d' ' -f1)
 kubectl port-forward pods/$POD_NAME -n argocd 4000:8080
@@ -46,7 +49,3 @@ argocd login localhost:4000
 ```bash
 argocd account update-password
 ```
-
-
-
-
