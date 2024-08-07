@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: portfolio-app
-          image: ani2fun/portfolio-app:9d4a9ab2b3248f3eff3e383837eb0b7c55a5a891
+          image: ani2fun/portfolio-app:28c4ea8e17046a23001dbe9788fb5a65150713c2
           imagePullPolicy: Always
           ports:
             - containerPort: 80
