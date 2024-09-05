@@ -1,0 +1,23 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: portfolio-app-ingress
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod-http01
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+      - kakde.eu
+      secretName: kakde-eu-portfolio-tls
+  rules:
+    - host: kakde.eu
+      http:
+        paths:
+          - path: "/"
+            pathType: Prefix
+            backend:
+              service:
+                name: portfolio-app-first
+                port:
+                  number: 80

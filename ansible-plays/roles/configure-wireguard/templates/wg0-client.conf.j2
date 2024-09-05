@@ -1,0 +1,9 @@
+[Interface]
+PrivateKey = {{ private_key }}
+Address = {{ wg_address }}
+
+[Peer]
+PublicKey = {{ gateway_server_ip }}
+Endpoint = {{ gateway_server_ip }}:{{ wg_listen_port }}
+AllowedIPs = {{ wg_address_gateway.split('/')[0] }}/32
+PersistentKeepalive = 25

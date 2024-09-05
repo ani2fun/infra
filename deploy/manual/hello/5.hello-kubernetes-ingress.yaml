@@ -1,0 +1,34 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: hello-kubernetes-ingress
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod-http01
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - hw1.kakde.eu
+        - hw2.kakde.eu
+      secretName: hello-kubernetes-tls
+  rules:
+    - host: "hw1.kakde.eu"
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: hello-kubernetes-first
+                port:
+                  number: 80
+    - host: "hw2.kakde.eu"
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: hello-kubernetes-second
+                port:
+                  number: 80

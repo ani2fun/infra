@@ -1,0 +1,37 @@
+# ansible-plays/roles/configure-firewall/defaults/main.yml
+
+firewalld_zone: public
+
+firewalld_ports_gateway:
+  - { port: 51820, proto: udp }
+  - { port: 22, proto: tcp }
+  - { port: 80, proto: tcp }
+  - { port: 443, proto: tcp }
+
+firewalld_ports_k8s_nodes:
+  - { port: 51820, proto: udp }
+  - { port: 22, proto: tcp }
+  - { port: 80, proto: tcp }
+  - { port: 443, proto: tcp }
+  - { port: 6443, proto: tcp }
+  - { port: 8132, proto: tcp }
+  - { port: 10250, proto: tcp }
+  - { port: 179, proto: tcp }
+  - { port: 179, proto: udp }
+  - { port: 9080, proto: tcp }
+  - { port: 9443, proto: tcp }
+  - { port: 2379, proto: tcp }
+  - { port: 2380, proto: tcp }
+  - { port: 5556, proto: tcp }
+  - { port: 5557, proto: tcp }
+  - { port: 5558, proto: tcp }
+  - { port: 6379, proto: tcp }
+  - { port: 7000, proto: tcp }
+  - { port: 8080, proto: tcp }
+  - { port: 8081, proto: tcp }
+  - { port: 8082, proto: tcp }
+  - { port: 8083, proto: tcp }
+  - { port: 8084, proto: tcp }
+  - { port: 9001, proto: tcp }
+  - { port: 4789, proto: tcp }
+  - { port: 112, proto: tcp }

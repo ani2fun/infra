@@ -1,0 +1,4 @@
+---
+# ansible-plays/roles/setup-hostname/vars/main.yml
+root_domain: "kakde.eu"
+desired_hostname: "{{ inventory_hostname }}.{{ root_domain }}"

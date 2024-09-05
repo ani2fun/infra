@@ -1,0 +1,3 @@
+# ansible-plays/extra_vars.yml
+root_domain: "kakde.eu"
+app_env: "production"

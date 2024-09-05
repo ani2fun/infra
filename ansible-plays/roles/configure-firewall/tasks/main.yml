@@ -1,0 +1,68 @@
+# ansible-plays/roles/configure-firewall/tasks/main.yml
+
+# Ensure firewalld is installed and started
+- name: Ensure firewalld is installed
+  package:
+    name: firewalld
+    state: present
+
+- name: Ensure firewalld is running and enabled
+  service:
+    name: firewalld
+    state: started
+    enabled: true
+
+# Open necessary ports on gateway server only
+- name: Open gateway-specific ports
+  firewalld:
+    port: "{{ item.port }}/{{ item.proto }}"
+    permanent: yes
+    state: enabled
+    zone: "{{ firewalld_zone }}"
+  with_items: "{{ firewalld_ports_gateway }}"
+  when: "'gateway_servers' in group_names"
+
+# Open Kubernetes-specific ports only on k8s nodes
+- name: Open additional ports on Kubernetes nodes
+  firewalld:
+    port: "{{ item.port }}/{{ item.proto }}"
+    permanent: yes
+    state: enabled
+    zone: "{{ firewalld_zone }}"
+  with_items: "{{ firewalld_ports_k8s_nodes }}"
+  when: "'k8s_nodes' in group_names"
+
+- name: Allow HTTP and HTTPS traffic in firewalld
+  firewalld:
+    service: "{{ item }}"
+    zone: "{{ firewalld_zone }}"
+    permanent: yes
+    state: enabled
+  with_items:
+    - http
+    - https
+    - ssh
+    - wireguard
+  when: "'gateway_servers' in group_names"
+  become: true
+
+- name: Allow ICMP traffic through firewalld
+  firewalld:
+    icmp_block_inversion: yes
+    zone: "{{ firewalld_zone }}"
+    permanent: yes
+    state: enabled
+  become: true
+
+# Add masquerade on all nodes
+- name: Enable masquerading on all nodes
+  firewalld:
+    masquerade: yes
+    permanent: yes
+    zone: "{{ firewalld_zone }}"
+    state: enabled
+
+# Reload the firewall to apply changes
+- name: Reload firewalld to apply changes
+  command: firewall-cmd --reload
+  become: true

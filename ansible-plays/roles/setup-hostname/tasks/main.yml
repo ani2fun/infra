@@ -1,0 +1,18 @@
+---
+# ansible-plays/roles/setup-hostname/tasks/main.yml
+
+- name: Get the current hostname
+  command: hostnamectl --static
+  register: current_hostname
+
+- name: Debug the current hostname
+  debug:
+    msg: "Current Hostname: {{ current_hostname.stdout }}"
+
+#- name: Ensure hostname is set correctly
+#  command: hostnamectl set-hostname "{{ desired_hostname }}"
+#  when: current_hostname.stdout != desired_hostname
+#
+#- name: Restart systemd-hostnamed service if hostname was changed
+#  command: systemctl restart systemd-hostnamed
+#  when: current_hostname.stdout != desired_hostname

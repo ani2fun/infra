@@ -1,0 +1,47 @@
+---
+# Main playbook for setting up and configuring servers
+
+# 0. Connection test and print the names of the nodes and system information
+- name: Gather system information
+  hosts: all
+  gather_facts: true
+  become: true
+  tasks:
+    - name: Display Hostname
+      debug:
+        msg: "Hostname: {{ ansible_hostname }}"
+    - name: Display Operating System
+      debug:
+        msg: "Operating System: {{ ansible_distribution }} {{ ansible_distribution_version }}"
+    - name: Check CPU and total memory
+      debug:
+        msg: "CPU Architecture: {{ ansible_architecture }}, Total Memory: {{ ansible_memtotal_mb }} MB"
+
+# 1. Setup FQDN as hostname on all servers
+- name: Setup hostname on all servers
+  hosts: all
+  gather_facts: false
+  become: true
+  vars_files:
+    - "{{ playbook_dir }}/group_vars/vault.yml"
+    - "{{ playbook_dir }}/extra_vars.yml"
+  roles:
+    - role: setup-hostname
+      tags:
+        - setup_hostname
+
+# ansible-plays/playbook_test.yml
+- name: Test
+  hosts: all
+  gather_facts: true
+  become: true
+  vars_files:
+    - "{{ playbook_dir }}/group_vars/vault.yml"
+    - "{{ playbook_dir }}/extra_vars.yml"
+  roles:
+    - role: tests
+      tags:
+        - debug_extra_variable
+        - display_hostname
+        - display_os
+        - display_cpu_and_mem

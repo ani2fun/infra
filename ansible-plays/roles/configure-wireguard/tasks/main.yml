@@ -1,0 +1,106 @@
+# Stop the WireGuard service if it is already running
+# Load WireGuard Kernel Module
+- name: Load WireGuard Kernel Module (AlmaLinux)
+  shell: modprobe wireguard
+  become: true
+
+- name: Stop the WireGuard service if running
+  systemd:
+    name: "wg-quick@wg0"
+    state: stopped
+    enabled: false
+
+# Set wg_address based on the host group
+- name: Set wg_address for gateway servers
+  set_fact:
+    wg_address: "{{ wg_address_gateway }}"
+  when: "'gateway_servers' in group_names"
+
+- name: Set wg_address for Kubernetes nodes
+  set_fact:
+    wg_address: "{{ wg_address_node_01 if inventory_hostname in groups['k8s_nodes'] else wg_address_node_02 }}"
+  when: "'k8s_nodes' in group_names"
+
+# Fetch the private key for each node (gateway and Kubernetes nodes)
+- name: Slurp the WireGuard private key
+  slurp:
+    src: "/etc/wireguard/privatekey.{{ inventory_hostname }}-wg0"
+  register: wg_private_key
+
+- name: Decode the WireGuard private key
+  set_fact:
+    private_key: "{{ wg_private_key.content | b64decode }}"
+
+# Fetch the public key for each node
+- name: Slurp the WireGuard public key
+  slurp:
+    src: "/etc/wireguard/publickey.{{ inventory_hostname }}-wg0"
+  register: wg_public_key
+
+# Decode the WireGuard public key on Kubernetes nodes
+- name: Decode the WireGuard public key
+  set_fact:
+    wg_public_key_decoded: "{{ wg_public_key.content | b64decode }}"
+  when: "'k8s_nodes' in group_names"
+
+# Collect all public keys of Kubernetes nodes on gateway server
+- name: Collect all public keys of Kubernetes nodes on gateway server
+  set_fact:
+    k8s_nodes_public_keys_decoded: "{{ groups['k8s_nodes'] | map('extract', hostvars, 'wg_public_key_decoded') | list }}"
+  when: "'gateway_servers' in group_names"
+
+# On the gateway server, capture and set the IP address
+- name: Get gateway server IP address
+  command: "hostname -I"
+  register: gw_server_ip
+  when: "'gateway_servers' in group_names"
+
+- name: Set fact for gateway server IP
+  set_fact:
+    gw_server_ip: "{{ gw_server_ip.stdout.split()[0] }}"
+  when: "'gateway_servers' in group_names"
+
+# On Kubernetes nodes, retrieve the gateway server IP
+- name: Set gateway server IP for all nodes
+  set_fact:
+    gateway_server_ip: "{{ hostvars['gw-vpn-server']['gw_server_ip'] }}"
+  when: "'k8s_nodes' in group_names"
+
+# Configure wg0.conf on gateway server
+- name: Configure wg0.conf on gateway server
+  template:
+    src: "wg0-gateway.conf.j2"
+    dest: "/etc/wireguard/wg0.conf"
+    mode: '0600'
+  when: "'gateway_servers' in group_names"
+  delegate_to: "{{ inventory_hostname }}"
+  run_once: true
+
+# Start the WireGuard service
+- name: Start the WireGuard service
+  systemd:
+    name: "wg-quick@wg0"
+    state: started
+    enabled: true
+  become: true
+
+# Configure wg0.conf on Kubernetes nodes
+- name: Configure wg0.conf on Kubernetes nodes
+  template:
+    src: "wg0-client.conf.j2"
+    dest: "/etc/wireguard/wg0.conf"
+    mode: '0600'
+  when: "'k8s_nodes' in group_names"
+
+# Start the WireGuard service
+- name: Start the WireGuard service
+  systemd:
+    name: "wg-quick@wg0"
+    state: started
+    enabled: true
+
+# Ensure WireGuard service is enabled at boot
+- name: Enable the WireGuard service at boot
+  systemd:
+    name: "wg-quick@wg0"
+    enabled: true

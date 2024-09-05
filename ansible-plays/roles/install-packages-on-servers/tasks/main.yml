@@ -1,0 +1,32 @@
+---
+- name: Install packages for edge server
+  dnf:
+    name: "{{ gateway_server_packages }}"
+    state: present
+  become: true
+  when: "'for_edge' in group_names"
+
+#- name: Install packages for Kubernetes nodes
+#  yum:
+#    name: "{{ k8s_node_packages }}"
+#    state: present
+#  become: true
+#  when: "'k8s_nodes' in group_names"
+#
+## Ensure firewalld is started and enabled on gateway server
+#- name: Start and enable firewalld on gateway server
+#  systemd:
+#    name: firewalld
+#    state: started
+#    enabled: true
+#  become: true
+#  when: "'gateway_servers' in group_names"
+#
+## Ensure firewalld is started and enabled on Kubernetes nodes
+#- name: Start and enable firewalld on Kubernetes nodes
+#  systemd:
+#    name: firewalld
+#    state: started
+#    enabled: true
+#  become: true
+#  when: "'k8s_nodes' in group_names"

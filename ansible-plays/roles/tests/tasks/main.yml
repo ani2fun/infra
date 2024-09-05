@@ -1,0 +1,58 @@
+# ansible-plays/roles/tests/tasks/main.yml
+
+- name: Collect extra variables dynamically
+  set_fact:
+    extra_vars_dict: "{{ extra_vars_dict | default({}) | combine({item: lookup('vars', item)}) }}"
+  with_items:
+    - root_domain
+    - app_env
+
+- name: Print extra variables
+  debug:
+    msg: "{{ item.key }}: {{ item.value }}"
+  loop: "{{ extra_vars_dict | dict2items }}"
+  tags:
+    - debug_extra_variable
+
+- name: Display Hostname
+  debug:
+    msg: "Hostname: {{ ansible_hostname }}"
+  tags:
+    - display_hostname
+
+- name: Display Operating System
+  debug:
+    msg: "Operating System: {{ ansible_distribution }} {{ ansible_distribution_version }}"
+  tags:
+    - display_os
+
+- name: Check CPU and total memory
+  debug:
+    msg: "CPU Architecture: {{ ansible_architecture }}, Total Memory: {{ ansible_memtotal_mb }} MB"
+  tags:
+    - display_cpu_and_mem
+
+## Test connection from gw-vpn-server to each Kubernetes node
+#- name: Test connection from gw-vpn-server to Kubernetes nodes
+#  command: ping -c 3 {{ item }}
+#  register: ping_result
+#  when: "'gateway_servers' in group_names"
+#  with_items:
+#    - "{{ wg_address_master.split('/')[0] }}"
+#    - "{{ wg_address_worker.split('/')[0] }}"
+#
+#- name: Display ping results from gw-vpn-server to Kubernetes nodes
+#  debug:
+#    var: ping_result.stdout_lines
+#  when: "'gateway_servers' in group_names"
+#
+## Test connection from Kubernetes nodes to gw-vpn-server
+#- name: Test connection from Kubernetes nodes to gw-vpn-server
+#  command: ping -c 3 {{ wg_address_gateway.split('/')[0] }}
+#  register: ping_result
+#  when: "'k8s_nodes' in group_names"
+#
+#- name: Display ping results from Kubernetes nodes to gw-vpn-server
+#  debug:
+#    var: ping_result.stdout_lines
+#  when: "'k8s_nodes' in group_names"

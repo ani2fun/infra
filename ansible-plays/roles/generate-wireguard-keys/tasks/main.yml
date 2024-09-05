@@ -1,0 +1,38 @@
+# ansible-plays/roles/generate-wireguard-keys/tasks/main.yml
+# Generate private and public keys for each server
+
+# Ensure WireGuard directory exists
+- name: Ensure WireGuard directory exists
+  file:
+    path: /etc/wireguard
+    state: directory
+    mode: '0700'
+  become: true
+
+# Generate WireGuard private key
+- name: Generate WireGuard private key
+  command: wg genkey
+  register: wg_private_key
+  become: true
+
+# Save WireGuard private key
+- name: Save WireGuard private key
+  copy:
+    content: "{{ wg_private_key.stdout }}"
+    dest: "/etc/wireguard/privatekey.{{ inventory_hostname }}-wg0"
+    mode: '0400'
+  become: true
+
+# Generate WireGuard public key
+- name: Generate WireGuard public key
+  shell: echo "{{ wg_private_key.stdout }}" | wg pubkey
+  register: wg_public_key
+  become: true
+
+# Save WireGuard public key
+- name: Save WireGuard public key
+  copy:
+    content: "{{ wg_public_key.stdout }}"
+    dest: "/etc/wireguard/publickey.{{ inventory_hostname }}-wg0"
+    mode: '0644'
+  become: true

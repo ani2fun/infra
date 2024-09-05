@@ -1,0 +1,17 @@
+[servers]
+cloud-vm ansible_host=185.230.138.134
+master-01 ansible_host=192.168.5.3
+worker-01 ansible_host=192.168.5.4
+
+[edge]
+cloud-vm
+
+[k8s_nodes]
+cloud-vm
+master-01
+worker-01
+
+[all:vars]
+ansible_user=root
+ansible_ssh_private_key_file=~/.ssh/id_ed25519
+ansible_python_interpreter=/usr/bin/python3.9

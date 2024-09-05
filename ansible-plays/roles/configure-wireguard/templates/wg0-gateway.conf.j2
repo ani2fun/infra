@@ -1,0 +1,10 @@
+[Interface]
+Address = {{ wg_address_gateway }}
+ListenPort = {{ wg_listen_port }}
+PrivateKey = {{ private_key }}
+
+{% for node_key, node_ip in k8s_nodes_public_keys_decoded %}
+[Peer]
+PublicKey = {{ node_key }}
+AllowedIPs = {{ node_ip }}
+{% endfor %}

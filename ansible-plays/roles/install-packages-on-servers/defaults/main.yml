@@ -1,0 +1,37 @@
+# Define the list of packages for the edge servers
+for_edge:
+  - nginx
+  - git
+  - elrepo-release
+  - wireguard-tools
+  - firewalld
+  - fail2ban
+  - clamav
+  - selinux-policy-targeted
+  - net-tools
+
+# Define the list of packages for Kubernetes nodes
+k8s_node_packages:
+  - firewalld
+  - selinux-policy-targeted
+  - wireguard-tools
+  - net-tools
+  - telnet
+  - bind-utils
+  - tcpdump
+  - nmap
+  - traceroute
+  - sysstat
+  - nano
+  - bash-completion
+  - logrotate
+  - git
+  - python3
+  - openssl
+  - rsync
+  - wget
+  - curl
+  - zip
+  - unzip
+  - tar
+  - tuned

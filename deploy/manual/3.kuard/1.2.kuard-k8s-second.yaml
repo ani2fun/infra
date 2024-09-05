@@ -1,0 +1,35 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: kuard-k8s-second
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 8080
+      protocol: TCP
+  selector:
+    app: kuard-k8s-second
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kuard-k8s-second
+spec:
+  selector:
+    matchLabels:
+      app: kuard-k8s-second
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: kuard-k8s-second
+    spec:
+      containers:
+        - name: kuard-container
+          image: gcr.io/kuar-demo/kuard-amd64:1
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+      nodeSelector:
+        kubernetes.io/hostname: worker-01.kakde.eu

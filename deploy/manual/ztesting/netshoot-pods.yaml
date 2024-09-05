@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: netshoot-master-01-1
+  labels:
+    app: netshoot
+spec:
+  containers:
+  - name: netshoot
+    image: nicolaka/netshoot
+    command: ["/bin/sh", "-c", "sleep infinity"]
+  nodeSelector:
+    kubernetes.io/hostname: master-01.kakde.eu
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: netshoot-worker-01-1
+  labels:
+    app: netshoot
+spec:
+  containers:
+  - name: netshoot
+    image: nicolaka/netshoot
+    command: ["/bin/sh", "-c", "sleep infinity"]
+  nodeSelector:
+    kubernetes.io/hostname: worker-01.kakde.eu
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: netshoot-cloud-vm-1
+  labels:
+    app: netshoot
+spec:
+  containers:
+  - name: netshoot
+    image: nicolaka/netshoot
+    command: ["/bin/sh", "-c", "sleep infinity"]
+  nodeSelector:
+    kubernetes.io/hostname: cloud-vm.kakde.eu
+

@@ -1,0 +1,8 @@
+# ansible-plays/roles/configure-wireguard/defaults/main.yml
+
+# Default WireGuard configurations
+wg_interface: wg0
+wg_listen_port: 51820
+wg_address_gateway: 10.0.0.1/24
+wg_address_node_01: 10.0.0.2/32
+wg_address_node_02: 10.0.0.3/32
