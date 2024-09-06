@@ -28,7 +28,7 @@ spec:
     spec:
       containers:
         - name: notebook-app-container
-          image: ani2fun/note-book:35eddf49737005f409cd836e30a3f988e0b54712
+          image: ani2fun/note-book:692144e6354a5be015e78603ff81414a7beebb5b
           imagePullPolicy: Always
           ports:
             - containerPort: 3000
