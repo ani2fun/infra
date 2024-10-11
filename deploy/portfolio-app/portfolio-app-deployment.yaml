@@ -28,6 +28,6 @@ spec:
     spec:
       containers:
         - name: portfolio-app-container
-          image: ani2fun/portfolio-app:aef8c54a487c2591c7a1a368f252ed46aaee5e3d
+          image: ani2fun/portfolio-app:7ea214134143aed0a3b62c2be8bba5fb20ca0edb
           ports:
             - containerPort: 3000
