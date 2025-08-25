@@ -1,34 +1,60 @@
-# First
 apiVersion: v1
 kind: Service
 metadata:
   name: notebook-app-first
+  namespace: homelab
+  labels:
+    app.kubernetes.io/name: notebook-app-first
+    app.kubernetes.io/part-of: homelab
 spec:
   type: ClusterIP
+  selector:
+    app.kubernetes.io/name: notebook-app-first
   ports:
-    - protocol: TCP
+    - name: http
       port: 80
       targetPort: 3000
-  selector:
-    app: notebook-app-first
+      protocol: TCP
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: notebook-app-first
+  namespace: homelab
+  labels:
+    app.kubernetes.io/name: notebook-app-first
+    app.kubernetes.io/part-of: homelab
 spec:
+  replicas: 1
   selector:
     matchLabels:
-      app: notebook-app-first
-  replicas: 1
+      app.kubernetes.io/name: notebook-app-first
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxUnavailable: 0, maxSurge: 1 }
   template:
     metadata:
       labels:
-        app: notebook-app-first
+        app.kubernetes.io/name: notebook-app-first
+        app.kubernetes.io/part-of: homelab
     spec:
       containers:
-        - name: notebook-app-container
-          image: ani2fun/note-book:5deed48479f60668078f8f7dcb5acaf5a732eca2
-          imagePullPolicy: Always
+        - name: notebook-app
+          image: ani2fun/note-book:latest   # TEMP: known-good; we’ll pin to digest after verify
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 3000
+          readinessProbe:
+            httpGet: { path: /, port: 3000 }
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+          # No liveness yet; add after we confirm startup path
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits:   { cpu: 300m, memory: 256Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            runAsNonRoot: false         # TEMP for stability; we’ll harden to non-root after verify
+            capabilities: { drop: ["ALL"] }

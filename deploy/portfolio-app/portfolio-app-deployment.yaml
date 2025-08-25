@@ -1,33 +1,60 @@
-# First
 apiVersion: v1
 kind: Service
 metadata:
   name: portfolio-app-first
+  namespace: homelab
+  labels:
+    app.kubernetes.io/name: portfolio-app-first
+    app.kubernetes.io/part-of: homelab
 spec:
   type: ClusterIP
+  selector:
+    app.kubernetes.io/name: portfolio-app-first
   ports:
-    - protocol: TCP
+    - name: http
       port: 80
       targetPort: 3000
-  selector:
-    app: portfolio-app-first
+      protocol: TCP
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: portfolio-app-first
+  namespace: homelab
+  labels:
+    app.kubernetes.io/name: portfolio-app-first
+    app.kubernetes.io/part-of: homelab
 spec:
+  replicas: 1
   selector:
     matchLabels:
-      app: portfolio-app-first
-  replicas: 1
+      app.kubernetes.io/name: portfolio-app-first
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxUnavailable: 0, maxSurge: 1 }
   template:
     metadata:
       labels:
-        app: portfolio-app-first
+        app.kubernetes.io/name: portfolio-app-first
+        app.kubernetes.io/part-of: homelab
     spec:
       containers:
-        - name: portfolio-app-container
-          image: ani2fun/portfolio-app:fec370afb45c92196d307d624df718b99aaf8cb3
+        - name: portfolio-app
+          image: ani2fun/portfolio-app:latest
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 3000
+          readinessProbe:
+            httpGet: { path: /, port: 3000 }
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+          # Add liveness after verifying startup path
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits:   { cpu: 300m, memory: 256Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            runAsNonRoot: false         # TEMP for stability; we’ll harden to non-root after verify
+            capabilities: { drop: ["ALL"] }

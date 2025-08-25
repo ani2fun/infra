@@ -2,19 +2,19 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: notebook-app-ingress
+  namespace: homelab
   annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-prod-http01
+    cert-manager.io/cluster-issuer: letsencrypt-dns01
 spec:
   ingressClassName: nginx
   tls:
-    - hosts:
-      - notebook.kakde.eu
-      secretName: kakde-eu-notebook-tls
+    - hosts: [ "notebook.kakde.eu" ]
+      secretName: notebook-kakde-eu-tls
   rules:
-    - host: "notebook.kakde.eu"
+    - host: notebook.kakde.eu
       http:
         paths:
-          - path: "/"
+          - path: /
             pathType: Prefix
             backend:
               service:
