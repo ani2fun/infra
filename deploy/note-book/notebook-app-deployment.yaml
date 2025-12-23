@@ -40,7 +40,7 @@ spec:
     spec:
       containers:
         - name: notebook-app
-          image: ani2fun/note-book:latest   # TEMP: known-good; we’ll pin to digest after verify
+          image: ani2fun/note-book:5f7face64c914bb16a1f334708833336413debd6
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 3000
