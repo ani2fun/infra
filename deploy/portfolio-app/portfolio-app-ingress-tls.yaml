@@ -4,7 +4,7 @@ metadata:
   name: portfolio-app-ingress
   namespace: homelab
   annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-dns01
+    cert-manager.io/cluster-issuer: letsencrypt-prod-dns01
 spec:
   ingressClassName: nginx
   tls:
