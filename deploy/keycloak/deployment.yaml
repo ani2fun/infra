@@ -3,8 +3,6 @@ kind: Deployment
 metadata:
   name: keycloak
   namespace: keycloak
-  labels:
-    app: keycloak
 spec:
   replicas: 1
   selector:
@@ -15,82 +13,69 @@ spec:
       labels:
         app: keycloak
     spec:
-      securityContext:
-        seccompProfile:
-          type: RuntimeDefault
+      terminationGracePeriodSeconds: 60
       containers:
         - name: keycloak
-          image: quay.io/keycloak/keycloak:25.0.6
-          imagePullPolicy: IfNotPresent
-
-          command: ["/opt/keycloak/bin/kc.sh"]
-          args:
-            - "start"
-            - "--http-enabled=true"
-            - "--http-port=8080"
-            - "--proxy-headers=xforwarded"
-            - "--hostname=keycloak.kakde.eu"
-            - "--hostname-strict=true"
-            - "--hostname-strict-https=true"
-            - "--health-enabled=true"
-
+          image: quay.io/keycloak/keycloak:26.5.0
+          args: ["start"]
           ports:
             - name: http
               containerPort: 8080
-            - name: mgmt
+            - name: management
               containerPort: 9000
-
+          envFrom:
+            - secretRef:
+                name: keycloak-admin
+            - secretRef:
+                name: keycloak-db
           env:
             - name: KC_DB
-              value: postgres
-            - name: KC_DB_URL
-              value: "jdbc:postgresql://postgres-postgresql.databases.svc.cluster.local:5432/keycloakdb"
+              value: "postgres"
+            - name: KC_DB_URL_HOST
+              value: "postgres-postgresql.databases.svc.cluster.local"
+            - name: KC_DB_URL_PORT
+              value: "5432"
+            - name: KC_DB_URL_DATABASE
+              value: "keycloakdb"
             - name: KC_DB_USERNAME
-              value: keycloak
-            - name: KC_DB_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: keycloak-db
-                  key: KC_DB_PASSWORD
+              value: "keycloak"
 
-            - name: KC_BOOTSTRAP_ADMIN_USERNAME
-              valueFrom:
-                secretKeyRef:
-                  name: keycloak-admin
-                  key: KC_BOOTSTRAP_ADMIN_USERNAME
-            - name: KC_BOOTSTRAP_ADMIN_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: keycloak-admin
-                  key: KC_BOOTSTRAP_ADMIN_PASSWORD
+            - name: KC_PROXY_HEADERS
+              value: "xforwarded"
+            - name: KC_HTTP_ENABLED
+              value: "true"
+
+            - name: KC_HOSTNAME
+              value: "keyclock.kakde.eu"
+            - name: KC_HOSTNAME_STRICT
+              value: "true"
+
+            - name: KC_CACHE
+              value: "local"
+            - name: KC_HEALTH_ENABLED
+              value: "true"
 
           readinessProbe:
             httpGet:
               path: /health/ready
-              port: mgmt
-            initialDelaySeconds: 30
+              port: management
+            initialDelaySeconds: 20
             periodSeconds: 10
-            timeoutSeconds: 2
+            timeoutSeconds: 3
             failureThreshold: 12
-
           livenessProbe:
             httpGet:
               path: /health/live
-              port: mgmt
+              port: management
             initialDelaySeconds: 60
             periodSeconds: 20
-            timeoutSeconds: 2
+            timeoutSeconds: 3
             failureThreshold: 6
 
           resources:
             requests:
-              cpu: 200m
-              memory: 512Mi
+              cpu: "250m"
+              memory: "1Gi"
             limits:
-              cpu: "2"
-              memory: 2Gi
-
-          securityContext:
-            allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: false
-            runAsNonRoot: true
+              cpu: "1"
+              memory: "2Gi"
