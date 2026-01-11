@@ -3,14 +3,13 @@ kind: Service
 metadata:
   name: keycloak
   namespace: keycloak
+  labels:
+    app: keycloak
 spec:
+  type: ClusterIP
   selector:
     app: keycloak
   ports:
     - name: http
       port: 80
-      targetPort: http
-    - name: management
-      port: 9000
-      targetPort: management
-  type: ClusterIP
+      targetPort: 8080

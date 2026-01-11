@@ -5,14 +5,16 @@ metadata:
   namespace: keycloak
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod-dns01
+    nginx.ingress.kubernetes.io/proxy-buffer-size: "128k"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
 spec:
   ingressClassName: nginx
   tls:
     - hosts:
-        - keyclock.kakde.eu
-      secretName: tls-keyclock-kakde-eu
+        - keycloak.kakde.eu
+      secretName: tls-keycloak-kakde-eu
   rules:
-    - host: keyclock.kakde.eu
+    - host: keycloak.kakde.eu
       http:
         paths:
           - path: /
@@ -21,4 +23,4 @@ spec:
               service:
                 name: keycloak
                 port:
-                  name: http
+                  number: 80
