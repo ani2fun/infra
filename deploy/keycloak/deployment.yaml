@@ -46,7 +46,7 @@ spec:
               value: "true"
 
             - name: KC_HOSTNAME
-              value: "keyclock.kakde.eu"
+              value: "keycloak.kakde.eu"
             - name: KC_HOSTNAME_STRICT
               value: "true"
 
