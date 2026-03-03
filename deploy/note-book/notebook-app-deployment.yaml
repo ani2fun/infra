@@ -2,10 +2,9 @@ apiVersion: v1
 kind: Service
 metadata:
   name: notebook-app-first
-  namespace: homelab
+  namespace: apps
   labels:
     app.kubernetes.io/name: notebook-app-first
-    app.kubernetes.io/part-of: homelab
 spec:
   type: ClusterIP
   selector:
@@ -20,10 +19,9 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: notebook-app-first
-  namespace: homelab
+  namespace: apps
   labels:
     app.kubernetes.io/name: notebook-app-first
-    app.kubernetes.io/part-of: homelab
 spec:
   replicas: 1
   selector:
@@ -36,7 +34,7 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: notebook-app-first
-        app.kubernetes.io/part-of: homelab
+
     spec:
       containers:
         - name: notebook-app
