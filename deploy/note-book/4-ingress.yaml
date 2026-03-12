@@ -2,11 +2,13 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: notebook-app-ingress
-  namespace: homelab
+  namespace: apps
   annotations:
+    kubernetes.io/ingress.class: traefik
     cert-manager.io/cluster-issuer: letsencrypt-prod-dns01
+    traefik.ingress.kubernetes.io/router.tls: "true"
 spec:
-  ingressClassName: nginx
+  ingressClassName: traefik
   tls:
     - hosts: [ "notebook.kakde.eu" ]
       secretName: notebook-kakde-eu-tls
@@ -18,6 +20,6 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: notebook-app-first
+                name: notebook-app
                 port:
                   number: 80

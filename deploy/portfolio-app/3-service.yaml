@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: portfolio-app
+  namespace: apps
+  labels:
+    app.kubernetes.io/name: portfolio-app
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: portfolio-app
+  ports:
+    - name: http
+      port: 80
+      targetPort: 3000
+      protocol: TCP
