@@ -1,39 +1,42 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: portfolio-app
-  namespace: apps
-  labels:
-    app.kubernetes.io/name: portfolio-app
+  name: notebook-app
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app.kubernetes.io/name: portfolio-app
+      app.kubernetes.io/name: notebook-app
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: portfolio-app
+        app.kubernetes.io/name: notebook-app
     spec:
+      terminationGracePeriodSeconds: 20
       containers:
-        - name: portfolio-app
-          image: ani2fun/portfolio-app:latest
+        - name: notebook-app
+          image: ani2fun/note-book:5f7face64c914bb16a1f334708833336413debd6
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
               containerPort: 3000
+
           readinessProbe:
             httpGet: { path: /, port: 3000 }
-            initialDelaySeconds: 15
+            initialDelaySeconds: 5
             periodSeconds: 10
             timeoutSeconds: 2
             failureThreshold: 6
-          # Add livenessProbe after confirming startup stability
+
           resources:
             requests: { cpu: 50m, memory: 128Mi }
             limits: { cpu: 500m, memory: 512Mi }
+
           securityContext:
             allowPrivilegeEscalation: false
-            # Set these once your image supports it:
-            # runAsNonRoot: true
-            # readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault

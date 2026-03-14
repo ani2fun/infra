@@ -1,25 +1,26 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: portfolio-app
-  namespace: apps
+  name: dummy-app-template
   annotations:
     kubernetes.io/ingress.class: traefik
-    cert-manager.io/cluster-issuer: letsencrypt-prod-dns01
     traefik.ingress.kubernetes.io/router.tls: "true"
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    cert-manager.io/cluster-issuer: letsencrypt-staging-dns01
 spec:
   ingressClassName: traefik
   tls:
-    - hosts: ["kakde.eu"]
-      secretName: portfolio-app-tls
+    - hosts:
+        - dev.dummy-app-template.kakde.eu
+      secretName: dev-dummy-app-template-kakde-eu-tls
   rules:
-    - host: kakde.eu
+    - host: dev.dummy-app-template.kakde.eu
       http:
         paths:
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: portfolio-app
+                name: dummy-app-template
                 port:
                   number: 80
