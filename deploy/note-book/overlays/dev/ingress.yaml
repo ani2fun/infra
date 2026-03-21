@@ -1,0 +1,26 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: notebook-app
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-staging-dns01
+    kubernetes.io/ingress.class: traefik
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: dev.notebook.kakde.eu
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: notebook-app
+                port:
+                  number: 80
+  tls:
+    - hosts:
+        - dev.notebook.kakde.eu
+      secretName: dev-notebook-kakde-eu-tls

@@ -1,0 +1,15 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: apps-prod
+resources:
+- ../../base
+- ingress.yaml
+patches:
+- patch: "- op: replace\n  path: /spec/replicas\n  value: 2"
+  target:
+    kind: Deployment
+    name: notebook-app
+images:
+- name: ani2fun/note-book
+  newName: ani2fun/note-book
+  newTag: da2df55f9d144a6e6801adedb0377ad7dd81bec9
