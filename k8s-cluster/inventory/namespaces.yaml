@@ -1,0 +1,42 @@
+namespaces:
+  - name: kube-system
+    purpose: core k3s system workloads
+
+  - name: tigera-operator
+    purpose: Calico operator namespace
+
+  - name: calico-system
+    purpose: Calico node and controller workloads
+
+  - name: traefik
+    purpose: edge ingress controller
+
+  - name: cert-manager
+    purpose: TLS automation and ACME DNS-01
+
+  - name: argocd
+    purpose: GitOps controller and app definitions
+
+  - name: apps
+    purpose: legacy test namespace (whoami test app)
+
+  - name: apps-dev
+    purpose: development application workloads
+    labels:
+      kakde.eu/postgresql-access: "true"
+
+  - name: apps-prod
+    purpose: production application workloads
+    labels:
+      kakde.eu/postgresql-access: "true"
+
+  - name: databases-prod
+    purpose: internal PostgreSQL and related data services
+
+  - name: identity
+    purpose: Keycloak identity provider
+    labels:
+      kakde.eu/postgresql-access: "true"
+
+  - name: nettest
+    purpose: network testing namespace

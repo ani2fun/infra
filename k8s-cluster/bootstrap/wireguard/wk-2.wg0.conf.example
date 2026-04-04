@@ -1,0 +1,27 @@
+[Interface]
+Address = 172.27.15.13/32
+ListenPort = 51820
+PrivateKey = <WK_2_PRIVATE_KEY>
+MTU = 1420
+SaveConfig = false
+
+[Peer]
+# vm-1 / ctb-edge-1 (public)
+PublicKey = <VM_1_PUBLIC_KEY>
+AllowedIPs = 172.27.15.31/32
+Endpoint = 84.247.143.66:51820
+PersistentKeepalive = 25
+
+[Peer]
+# ms-1 (LAN)
+PublicKey = <MS_1_PUBLIC_KEY>
+AllowedIPs = 172.27.15.12/32
+Endpoint = 192.168.15.2:51820
+PersistentKeepalive = 25
+
+[Peer]
+# wk-1 (LAN)
+PublicKey = <WK_1_PUBLIC_KEY>
+AllowedIPs = 172.27.15.11/32
+Endpoint = 192.168.15.3:51820
+PersistentKeepalive = 25

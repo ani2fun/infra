@@ -1,0 +1,13 @@
+[Unit]
+Description=Edge guardrail firewall (nftables allowlist on eth0)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/edge-guardrail.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+

@@ -1,3 +1,3 @@
 # Infra Setup
 
-Documentation is under directory [_docs](./_docs).
+Documentation is under directory [docs](./docs).

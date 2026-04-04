@@ -1,0 +1,39 @@
+network:
+  lan:
+    cidr: 192.168.15.0/24
+    router_ip: 192.168.15.1
+    home_public_wan_ip: 82.123.119.181
+  wireguard:
+    cidr: 172.27.15.0/24
+    mtu: 1420
+    listen_port: 51820
+    rp_filter_mode: 2
+    routes_are_strict_peer_routes: true
+    admin_peer_ip: 172.27.15.50
+  kubernetes:
+    node_internal_ips_are_wireguard_ips: true
+    cluster_cidr: 10.42.0.0/16
+    service_cidr: 10.43.0.0/16
+    dns_resolver_symlink: /etc/rancher/k3s/k3s-resolv.conf
+  ingress:
+    edge_node_public_ip: 84.247.143.66
+    domain: kakde.eu
+    public_hosts:
+      - kakde.eu
+      - dev.kakde.eu
+      - notebook.kakde.eu
+      - dev.notebook.kakde.eu
+      - argocd.kakde.eu
+      - keycloak.kakde.eu
+      - whoami.kakde.eu
+      - whoami-auth.kakde.eu
+  postgres:
+    service_fqdn: postgresql.databases-prod.svc.cluster.local
+    port: 5432
+  router_port_forwards:
+    - public: 82.123.119.181:51820/udp
+      target: wk-1:51820/udp
+    - public: 82.123.119.181:51821/udp
+      target: ms-1:51820/udp
+    - public: 82.123.119.181:51822/udp
+      target: wk-2:51820/udp

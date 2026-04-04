@@ -1,0 +1,80 @@
+nodes:
+  - name: ms-1
+    ssh_alias: ms-1
+    doc_name: ms-1
+    role: control-plane
+    location: home-lan
+    os: ubuntu-24.04
+    ssh_user: root
+    lan_ip: 192.168.15.2
+    wireguard_ip: 172.27.15.12
+    public_ip: null
+    k3s:
+      mode: server
+      expected_labels:
+        homelab.kakde.eu/role: server
+      expected_taints:
+        - node-role.kubernetes.io/control-plane=true:NoSchedule
+    notes:
+      - primary kubectl administration host
+      - expected API advertise address is 172.27.15.12
+
+  - name: wk-1
+    ssh_alias: wk-1
+    doc_name: wk-1
+    role: worker
+    location: home-lan
+    os: ubuntu-24.04
+    ssh_user: root
+    lan_ip: 192.168.15.3
+    wireguard_ip: 172.27.15.11
+    public_ip: null
+    k3s:
+      mode: agent
+      expected_labels:
+        homelab.kakde.eu/role: worker
+        kakde.eu/postgresql: "true"
+      expected_taints: []
+    notes:
+      - docs place PostgreSQL here
+
+  - name: wk-2
+    ssh_alias: wk-2
+    doc_name: wk-2
+    role: worker
+    location: home-lan
+    os: ubuntu-24.04
+    ssh_user: root
+    lan_ip: 192.168.15.4
+    wireguard_ip: 172.27.15.13
+    public_ip: null
+    k3s:
+      mode: agent
+      expected_labels:
+        homelab.kakde.eu/role: worker
+        workload: argocd
+      expected_taints: []
+    notes:
+      - docs pin Argo CD workloads here
+
+  - name: vm-1
+    ssh_alias: vm-1
+    doc_name: ctb-edge-1
+    role: public-edge-worker
+    location: contabo-cloud
+    os: ubuntu-24.04
+    ssh_user: root
+    lan_ip: null
+    wireguard_ip: 172.27.15.31
+    public_ip: 84.247.143.66
+    k3s:
+      mode: agent
+      expected_labels:
+        homelab.kakde.eu/role: edge
+        kakde.eu/edge: "true"
+      expected_taints:
+        - kakde.eu/edge=true:NoSchedule
+    notes:
+      - docs call this node ctb-edge-1
+      - intended public ingress entrypoint for 80/tcp and 443/tcp only
+

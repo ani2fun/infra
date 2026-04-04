@@ -1,0 +1,4 @@
+live-capture/output/
+live-capture/tmp/
+*.tar.gz
+
