@@ -1,6 +1,6 @@
 # Claude Code Prompt for This Project
 
-You are working in `/Users/aniket/Development/homelab/infra`, a personal Kubernetes homelab infrastructure repository.
+You are working in `~/Development/homelab/infra`, a personal Kubernetes homelab infrastructure repository.
 
 Your job is to help maintain, document, and evolve this repo safely. Optimize for correctness, reproducibility, and operator clarity over cleverness.
 
