@@ -1,30 +1,32 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: dsa-tracker
+  name: dsa-tracker-backend
 spec:
   replicas: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: dsa-tracker
+      app.kubernetes.io/component: backend
   template:
     metadata:
       labels:
         app.kubernetes.io/name: dsa-tracker
+        app.kubernetes.io/component: backend
     spec:
       terminationGracePeriodSeconds: 20
       imagePullSecrets:
         - name: dsa-tracker-regcred
       containers:
-        - name: dsa-tracker
-          image: ani2fun/dsa-tracker:3a0f3d50084d9ff9d047e9fec9eae7d3819a5763
+        - name: backend
+          image: ani2fun/dsa-tracker-backend:latest
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
-              containerPort: 3000
+              containerPort: 8080
           env:
-            - name: PORT
-              value: "3000"
+            - name: SERVER_PORT
+              value: "8080"
             - name: POSTGRES_HOST
               value: postgresql.databases-prod.svc.cluster.local
             - name: POSTGRES_PORT
@@ -35,6 +37,10 @@ spec:
               value: appuser
             - name: KEYCLOAK_URL
               value: https://keycloak.kakde.eu
+            - name: KEYCLOAK_PUBLIC_URL
+              value: https://keycloak.kakde.eu
+            - name: KEYCLOAK_ISSUER_URI
+              value: https://keycloak.kakde.eu/realms/apps-prod
             - name: KEYCLOAK_REALM
               value: apps-prod
             - name: KEYCLOAK_CLIENT_ID
@@ -47,7 +53,7 @@ spec:
           readinessProbe:
             httpGet:
               path: /api/health
-              port: 3000
+              port: 8080
             initialDelaySeconds: 5
             periodSeconds: 10
             timeoutSeconds: 2
@@ -55,7 +61,7 @@ spec:
           livenessProbe:
             httpGet:
               path: /api/health
-              port: 3000
+              port: 8080
             initialDelaySeconds: 15
             periodSeconds: 20
             timeoutSeconds: 2

@@ -13,11 +13,18 @@ spec:
     - host: dsa-tracker.kakde.eu
       http:
         paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: dsa-tracker-backend
+                port:
+                  number: 8080
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: dsa-tracker
+                name: dsa-tracker-frontend
                 port:
                   number: 80
   tls:

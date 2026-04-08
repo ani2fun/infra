@@ -3,12 +3,10 @@ kind: Kustomization
 
 labels:
   - pairs:
-      app.kubernetes.io/name: dsa-tracker
+      app.kubernetes.io/name: keycloak
     includeSelectors: true
     includeTemplates: true
 
 resources:
-  - backend-deployment.yaml
-  - backend-service.yaml
-  - frontend-deployment.yaml
-  - frontend-service.yaml
+  - deployment.yaml
+  - service.yaml

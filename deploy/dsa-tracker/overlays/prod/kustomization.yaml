@@ -10,8 +10,15 @@ patches:
 - patch: "- op: replace\n  path: /spec/replicas\n  value: 2"
   target:
     kind: Deployment
-    name: dsa-tracker
+    name: dsa-tracker-backend
+- patch: "- op: replace\n  path: /spec/replicas\n  value: 2"
+  target:
+    kind: Deployment
+    name: dsa-tracker-frontend
 images:
-- name: ani2fun/dsa-tracker
-  newName: ani2fun/dsa-tracker
-  newTag: b34726d9d0aa804b8b6e03c36cd4916c39a3d3b5
+- name: ani2fun/dsa-tracker-backend
+  newName: ani2fun/dsa-tracker-backend
+  newTag: ce908629fd5d68653394755aaa7c474755044abe
+- name: ani2fun/dsa-tracker-frontend
+  newName: ani2fun/dsa-tracker-frontend
+  newTag: ce908629fd5d68653394755aaa7c474755044abe
