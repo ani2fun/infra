@@ -18,7 +18,7 @@ patches:
 images:
 - name: ani2fun/dsa-tracker-backend
   newName: ani2fun/dsa-tracker-backend
-  newTag: f75181ee0c9df69c73a7dce5038532897ba58031
+  newTag: ce908629fd5d68653394755aaa7c474755044abe
 - name: ani2fun/dsa-tracker-frontend
   newName: ani2fun/dsa-tracker-frontend
-  newTag: f75181ee0c9df69c73a7dce5038532897ba58031
+  newTag: ce908629fd5d68653394755aaa7c474755044abe
