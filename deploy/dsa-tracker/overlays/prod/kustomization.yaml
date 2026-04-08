@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: apps-prod
+resources:
+- ../../base
+- ingress.yaml
+- sealedsecret.yaml
+patches:
+- patch: "- op: replace\n  path: /spec/replicas\n  value: 2"
+  target:
+    kind: Deployment
+    name: dsa-tracker
+images:
+- name: ani2fun/dsa-tracker
+  newName: ani2fun/dsa-tracker
+  newTag: 3a0f3d50084d9ff9d047e9fec9eae7d3819a5763

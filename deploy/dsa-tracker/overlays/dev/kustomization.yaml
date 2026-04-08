@@ -1,0 +1,11 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: apps-dev
+resources:
+- ../../base
+- ingress.yaml
+- sealedsecret.yaml
+images:
+- name: ani2fun/dsa-tracker
+  newName: ani2fun/dsa-tracker
+  newTag: 3a0f3d50084d9ff9d047e9fec9eae7d3819a5763

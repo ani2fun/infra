@@ -1,0 +1,26 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: dsa-tracker
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod-dns01
+    kubernetes.io/ingress.class: traefik
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: dsa-tracker-dev.kakde.eu
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: dsa-tracker
+                port:
+                  number: 80
+  tls:
+    - hosts:
+        - dsa-tracker-dev.kakde.eu
+      secretName: dsa-tracker-dev-kakde-eu-tls
