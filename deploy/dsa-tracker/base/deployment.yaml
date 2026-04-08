@@ -33,6 +33,12 @@ spec:
               value: dsa_tracker
             - name: POSTGRES_USER
               value: appuser
+            - name: KEYCLOAK_URL
+              value: https://keycloak.kakde.eu
+            - name: KEYCLOAK_REALM
+              value: apps-prod
+            - name: KEYCLOAK_CLIENT_ID
+              value: dsa-tracker-web
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
