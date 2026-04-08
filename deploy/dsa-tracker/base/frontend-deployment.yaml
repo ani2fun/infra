@@ -15,8 +15,6 @@ spec:
         app.kubernetes.io/component: frontend
     spec:
       terminationGracePeriodSeconds: 20
-      imagePullSecrets:
-        - name: dsa-tracker-regcred
       containers:
         - name: frontend
           image: ani2fun/dsa-tracker-frontend:latest

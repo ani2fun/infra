@@ -129,21 +129,19 @@ The controller creates `Secret/my-secret` from `SealedSecret/my-secret`.
 For `dsa-tracker`, the encrypted manifests live here:
 
 - `deploy/dsa-tracker/overlays/prod/sealedsecret.yaml`
-- `deploy/dsa-tracker/overlays/prod/registry-sealedsecret.yaml`
 
-They produce these runtime secrets in `apps-prod`:
+It produces this runtime secret in `apps-prod`:
 
 - `dsa-tracker-db`
-- `dsa-tracker-regcred`
 
 And the app references them from:
 
-- `deploy/dsa-tracker/base/deployment.yaml`
+- `deploy/dsa-tracker/base/backend-deployment.yaml`
 
 Examples:
 
 - `dsa-tracker-db` stores the PostgreSQL password
-- `dsa-tracker-regcred` stores Docker Hub image pull credentials
+- DSA Tracker images are published from public GHCR packages, so the app no longer needs a registry pull secret
 
 ## Creating a generic app secret in the future
 
@@ -219,7 +217,6 @@ Project wrappers in this repo automate the common cases:
 
 ```bash
 scripts/secrets/rotate-keycloak-github-oauth.sh <client-id> <client-secret>
-scripts/secrets/rotate-dsa-tracker-regcred.sh <dockerhub-username> <dockerhub-token> [dockerhub-email]
 ```
 
 ## Where the encrypted data lives
@@ -237,7 +234,7 @@ Example from `dsa-tracker`:
 ```yaml
 spec:
   encryptedData:
-    .dockerconfigjson: Ag...
+    postgres-password: Ag...
 ```
 
 That encrypted blob is safe to commit. It is not the original secret value.
@@ -270,14 +267,6 @@ ssh root@192.168.15.2 \
 base64 -d
 ```
 
-For a Docker config secret:
-
-```bash
-ssh root@192.168.15.2 \
-  "kubectl get secret dsa-tracker-regcred -n apps-prod -o jsonpath='{.data.\.dockerconfigjson}'" | \
-base64 -d
-```
-
 So the recovery rule is:
 
 - from Git: you recover only the encrypted blob
@@ -295,7 +284,6 @@ That means you should still treat the original values as important credentials a
 Practical guidance:
 
 - database passwords should be documented in your password manager or rotated from the database side
-- Docker Hub tokens should be stored in your password manager and rotated if necessary
 - Sealed Secrets protects Git, but it is not a replacement for credential lifecycle management
 
 ## Key rotation note
