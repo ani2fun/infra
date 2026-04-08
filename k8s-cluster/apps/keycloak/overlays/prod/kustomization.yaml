@@ -4,6 +4,7 @@ namespace: auth-prod
 resources:
   - ../../base
   - ingress.yaml
+  - github-oauth-sealedsecret.yaml
 patches:
   - patch: |-
       - op: replace
