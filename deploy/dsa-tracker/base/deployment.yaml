@@ -13,6 +13,8 @@ spec:
         app.kubernetes.io/name: dsa-tracker
     spec:
       terminationGracePeriodSeconds: 20
+      imagePullSecrets:
+        - name: dsa-tracker-regcred
       containers:
         - name: dsa-tracker
           image: ani2fun/dsa-tracker:3a0f3d50084d9ff9d047e9fec9eae7d3819a5763
