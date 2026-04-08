@@ -13,4 +13,4 @@ patches:
 images:
 - name: ani2fun/dsa-tracker
   newName: ani2fun/dsa-tracker
-  newTag: 3a0f3d50084d9ff9d047e9fec9eae7d3819a5763
+  newTag: 1935be43f3b162e88c69f8a0b161d5a28c35e949
