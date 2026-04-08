@@ -320,6 +320,20 @@ For future changes, use this pattern:
 6. commit and push only the sealed YAML
 7. let Argo CD sync it
 
+## Helper scripts in this repo
+
+For the common workflows, use the scripts under `scripts/secrets/`:
+
+- `scripts/secrets/fetch-sealed-secrets-cert.sh` fetches the active Sealed Secrets public certificate
+- `scripts/secrets/rotate-generic-secret.sh <namespace> <secret-name> <output-yaml> <key=value>...` reseals a generic secret
+- `scripts/secrets/rotate-keycloak-github-oauth.sh <client-id> <client-secret>` updates the production Keycloak GitHub OAuth sealed secret
+- `scripts/secrets/read-secret-value.sh <namespace> <secret-name> <key>` decodes a live runtime secret value
+- `scripts/secrets/read-keycloak-admin-credentials.sh` prints the live Keycloak admin username and password
+- `scripts/secrets/read-keycloak-db-password.sh` prints the live Keycloak database password
+- `scripts/secrets/read-dsa-tracker-db-password.sh` prints the live DSA Tracker database password
+
+These read scripts are intended for use on the Kubernetes controller or any machine with working `kubectl` access to the cluster.
+
 ## Quick checklist
 
 - Never commit plain `Secret` manifests
