@@ -215,6 +215,13 @@ kubeseal \
   > deploy/dsa-tracker/overlays/prod/sealedsecret.yaml
 ```
 
+Project wrappers in this repo automate the common cases:
+
+```bash
+scripts/secrets/rotate-keycloak-github-oauth.sh <client-id> <client-secret>
+scripts/secrets/rotate-dsa-tracker-regcred.sh <dockerhub-username> <dockerhub-token> [dockerhub-email]
+```
+
 ## Where the encrypted data lives
 
 The encrypted data lives in Git, inside the `SealedSecret` manifest under:
