@@ -8,7 +8,6 @@ metadata:
     traefik.ingress.kubernetes.io/router.entrypoints: websecure
     traefik.ingress.kubernetes.io/router.tls: "true"
 spec:
-  ingressClassName: traefik
   rules:
     - host: keycloak.kakde.eu
       http:
@@ -23,4 +22,4 @@ spec:
   tls:
     - hosts:
         - keycloak.kakde.eu
-      secretName: keycloak-kakde-eu-tls
+      secretName: keycloak-tls

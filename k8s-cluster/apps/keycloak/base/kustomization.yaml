@@ -3,7 +3,7 @@ kind: Kustomization
 
 labels:
   - pairs:
-      app.kubernetes.io/name: keycloak
+      app: keycloak
     includeSelectors: true
     includeTemplates: true
 
