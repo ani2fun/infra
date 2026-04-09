@@ -17,7 +17,7 @@ patches:
 images:
 - name: ani2fun/dsa-tracker-backend
   newName: ghcr.io/ani2fun/dsa-tracker-backend
-  newTag: 8563dbfe68e1f2cce0ea50e5643a3fcef9e86c8a
+  newTag: 530a7b030e6bdb35ed9e81943ed08bd01571677f
 - name: ani2fun/dsa-tracker-frontend
   newName: ghcr.io/ani2fun/dsa-tracker-frontend
-  newTag: 8563dbfe68e1f2cce0ea50e5643a3fcef9e86c8a
+  newTag: 530a7b030e6bdb35ed9e81943ed08bd01571677f
