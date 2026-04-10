@@ -20,4 +20,4 @@ images:
   newTag: 37abb68c097a68688255264e3eebb75f145c6190
 - name: ani2fun/dsa-tracker-frontend
   newName: ghcr.io/ani2fun/dsa-tracker-frontend
-  newTag: 37abb68c097a68688255264e3eebb75f145c6190
+  newTag: 0615014567ab06ffa475ef14540e91d4478673df
