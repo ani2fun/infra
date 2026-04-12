@@ -27,6 +27,10 @@ spec:
             # Kroki expects an integer value there, so pin it explicitly.
             - name: KROKI_PORT
               value: "8000"
+            # The companion service also injects KROKI_EXCALIDRAW_PORT.
+            # Pin the numeric port so Kroki does not receive a tcp:// value.
+            - name: KROKI_EXCALIDRAW_PORT
+              value: "8004"
             - name: KROKI_EXCALIDRAW_HOST
               value: kroki-excalidraw
           readinessProbe:
