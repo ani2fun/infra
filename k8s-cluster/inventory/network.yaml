@@ -21,6 +21,7 @@ network:
     public_hosts:
       - kakde.eu
       - dev.kakde.eu
+      - kroki.kakde.eu
       - notebook.kakde.eu
       - dev.notebook.kakde.eu
       - argocd.kakde.eu

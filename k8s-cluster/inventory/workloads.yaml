@@ -57,6 +57,34 @@ workloads:
       tls_secret: dev-kakde-eu-tls
       cluster_issuer: letsencrypt-staging-dns01
 
+  - name: kroki
+    namespace: apps-prod
+    kind: Deployment
+    managed_by: argocd
+    image: yuzutech/kroki:0.30.0
+    replicas: 1
+    service:
+      name: kroki
+      port: 8000
+      target_port: 8000
+    ingress:
+      host: kroki.kakde.eu
+      tls_secret: kroki-kakde-eu-tls
+      cluster_issuer: letsencrypt-prod-dns01
+    dependencies:
+      - kroki-excalidraw.apps-prod.svc.cluster.local:8004
+
+  - name: kroki-excalidraw
+    namespace: apps-prod
+    kind: Deployment
+    managed_by: argocd
+    image: yuzutech/kroki-excalidraw:0.30.0
+    replicas: 1
+    service:
+      name: kroki-excalidraw
+      port: 8004
+      target_port: 8004
+
   - name: postgresql
     namespace: databases-prod
     kind: StatefulSet
