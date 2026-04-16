@@ -6,4 +6,3 @@ namespace: apps-prod
 resources:
   - ../../base
   - ingress.yaml
-  - cors-middleware.yaml
