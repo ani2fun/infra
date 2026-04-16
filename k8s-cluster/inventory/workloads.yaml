@@ -43,6 +43,21 @@ workloads:
       tls_secret: kakde-eu-tls
       cluster_issuer: letsencrypt-prod-dns01
 
+  - name: piston
+    namespace: apps-prod
+    kind: Deployment
+    managed_by: argocd
+    image: ghcr.io/engineer-man/piston:latest
+    replicas: 1
+    service:
+      name: piston
+      port: 2000
+      target_port: 2000
+    ingress:
+      host: piston.kakde.eu
+      tls_secret: piston-kakde-eu-tls
+      cluster_issuer: letsencrypt-prod-dns01
+
   - name: portfolio-app-dev
     namespace: apps-dev
     kind: Deployment
@@ -56,30 +71,6 @@ workloads:
       host: dev.kakde.eu
       tls_secret: dev-kakde-eu-tls
       cluster_issuer: letsencrypt-staging-dns01
-
-  - name: kroki
-    namespace: apps-prod
-    kind: Deployment
-    managed_by: argocd
-    image: yuzutech/kroki:0.30.0
-    replicas: 1
-    service:
-      name: kroki
-      port: 8000
-      target_port: 8000
-    dependencies:
-      - kroki-excalidraw.apps-prod.svc.cluster.local:8004
-
-  - name: kroki-excalidraw
-    namespace: apps-prod
-    kind: Deployment
-    managed_by: argocd
-    image: yuzutech/kroki-excalidraw:0.30.0
-    replicas: 1
-    service:
-      name: kroki-excalidraw
-      port: 8004
-      target_port: 8004
 
   - name: postgresql
     namespace: databases-prod

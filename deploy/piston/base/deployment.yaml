@@ -4,6 +4,8 @@ metadata:
   name: piston
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app.kubernetes.io/name: piston
@@ -19,6 +21,26 @@ spec:
         - name: piston
           image: ghcr.io/engineer-man/piston:latest
           imagePullPolicy: IfNotPresent
+          command:
+            - /bin/bash
+            - -lc
+          args:
+            - >-
+              CGROUP_FS=/sys/fs/cgroup &&
+              [ -e "$CGROUP_FS" ] &&
+              [ ! -e "$CGROUP_FS/unified" ] &&
+              [ -e "$CGROUP_FS/cgroup.subtree_control" ] &&
+              cd "$CGROUP_FS" &&
+              mkdir -p isolate &&
+              { echo 1 > isolate/cgroup.procs || true; } &&
+              { echo '+cpuset +cpu +io +memory +pids' > cgroup.subtree_control || true; } &&
+              cd isolate &&
+              mkdir -p init &&
+              { echo 1 > init/cgroup.procs || true; } &&
+              { echo '+cpuset +memory' > cgroup.subtree_control || true; } &&
+              echo "Initialized cgroup" &&
+              chown -R piston:piston /piston &&
+              exec su -- piston -c 'ulimit -n 65536 && node /piston_api/src'
           ports:
             - name: http
               containerPort: 2000
