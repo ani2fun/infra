@@ -40,14 +40,80 @@ spec:
               { echo '+cpuset +memory' > cgroup.subtree_control || true; } &&
               echo "Initialized cgroup" &&
               chown -R piston:piston /piston &&
-              exec su -- piston -c 'ulimit -n 65536 && node /piston_api/src'
+              su -- piston -c 'ulimit -n 65536 && node /piston_api/src' &
+              api_pid=$! &&
+              node -e "
+              const http = require('http');
+              const request = (method, path, body) => new Promise((resolve, reject) => {
+                const req = http.request(
+                  {
+                    hostname: '127.0.0.1',
+                    port: 2000,
+                    path,
+                    method,
+                    headers: body ? { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) } : {}
+                  },
+                  (res) => {
+                    let data = '';
+                    res.on('data', (chunk) => data += chunk);
+                    res.on('end', () => resolve({ status: res.statusCode, data }));
+                  }
+                );
+                req.on('error', reject);
+                if (body) req.write(body);
+                req.end();
+              });
+              (async () => {
+                for (let i = 0; i < 60; i += 1) {
+                  try {
+                    const packages = await request('GET', '/api/v2/packages');
+                    if (packages.status === 200) {
+                      const list = JSON.parse(packages.data);
+                      const rustInstalled = list.some((pkg) => pkg.language === 'rust' && pkg.installed);
+                      if (!rustInstalled) {
+                        const install = await request('POST', '/api/v2/packages', JSON.stringify({ language: 'rust', version: '*' }));
+                        if (install.status < 200 || install.status >= 300) {
+                          throw new Error('Rust install failed: ' + install.status + ' ' + install.data);
+                        }
+                      }
+                      return;
+                    }
+                  } catch (_) {}
+                  await new Promise((resolve) => setTimeout(resolve, 1000));
+                }
+                throw new Error('Timed out waiting for the Piston API to become ready');
+              })().catch((error) => {
+                console.error(error.message || error);
+                process.exit(1);
+              });
+              " &&
+              wait "$api_pid"
           ports:
             - name: http
               containerPort: 2000
           env:
-            # Allow browser requests from any origin (static mdBook site)
             - name: PISTON_CORS_ORIGIN
-              value: "*"
+              value: "https://notebook.kakde.eu"
+            - name: PISTON_DISABLE_NETWORKING
+              value: "true"
+            - name: PISTON_MAX_CONCURRENT_JOBS
+              value: "4"
+            - name: PISTON_COMPILE_TIMEOUT
+              value: "10000"
+            - name: PISTON_RUN_TIMEOUT
+              value: "3000"
+            - name: PISTON_COMPILE_MEMORY_LIMIT
+              value: "536870912"
+            - name: PISTON_RUN_MEMORY_LIMIT
+              value: "268435456"
+            - name: PISTON_OUTPUT_MAX_SIZE
+              value: "16384"
+            - name: PISTON_MAX_FILE_SIZE
+              value: "1048576"
+            - name: PISTON_MAX_PROCESS_COUNT
+              value: "64"
+            - name: PISTON_MAX_OPEN_FILES
+              value: "64"
           volumeMounts:
             - name: packages
               mountPath: /piston/packages

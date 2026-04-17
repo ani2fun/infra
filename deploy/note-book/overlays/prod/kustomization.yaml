@@ -2,8 +2,10 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: apps-prod
 resources:
-- ../../base
-- ingress.yaml
+  - ../../base
+  - ingress.yaml
+  - piston-api-ingress.yaml
+  - piston-ratelimit-middleware.yaml
 patches:
 - patch: "- op: replace\n  path: /spec/replicas\n  value: 2"
   target:
