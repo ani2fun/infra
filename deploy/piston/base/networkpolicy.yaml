@@ -15,7 +15,7 @@ spec:
             matchLabels:
               kubernetes.io/metadata.name: traefik
         - ipBlock:
-            cidr: 172.27.15.31/32
+            cidr: 10.42.102.128/32
       ports:
         - protocol: TCP
           port: 2000
