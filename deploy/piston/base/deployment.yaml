@@ -109,7 +109,7 @@ spec:
             - name: PISTON_OUTPUT_MAX_SIZE
               value: "16384"
             - name: PISTON_MAX_FILE_SIZE
-              value: "10000000"
+              value: "100000000"
             - name: PISTON_MAX_PROCESS_COUNT
               value: "64"
             - name: PISTON_MAX_OPEN_FILES
