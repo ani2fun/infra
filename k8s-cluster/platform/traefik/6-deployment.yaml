@@ -51,6 +51,7 @@ spec:
           args:
             - --providers.kubernetesingress=true
             - --providers.kubernetesingress.ingressclass=traefik
+            - --providers.kubernetescrd=true
             - --entrypoints.web.address=:80
             - --entrypoints.websecure.address=:443
             - --accesslog=true

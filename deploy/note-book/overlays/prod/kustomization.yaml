@@ -4,6 +4,8 @@ namespace: apps-prod
 resources:
   - ../../base
   - ingress.yaml
+  - piston-api-ingress.yaml
+  - piston-ratelimit-middleware.yaml
 patches:
 - patch: "- op: replace\n  path: /spec/replicas\n  value: 2"
   target:

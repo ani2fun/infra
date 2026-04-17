@@ -13,20 +13,6 @@ spec:
     - host: notebook.kakde.eu
       http:
         paths:
-          - path: /api/v2/execute
-            pathType: Exact
-            backend:
-              service:
-                name: piston
-                port:
-                  number: 2000
-          - path: /api/v2/runtimes
-            pathType: Exact
-            backend:
-              service:
-                name: piston
-                port:
-                  number: 2000
           - path: /
             pathType: Prefix
             backend:

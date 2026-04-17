@@ -1,20 +1,28 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: piston
+  name: notebook-piston-api
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod-dns01
     kubernetes.io/ingress.class: traefik
     traefik.ingress.kubernetes.io/router.entrypoints: websecure
     traefik.ingress.kubernetes.io/router.tls: "true"
+    traefik.ingress.kubernetes.io/router.middlewares: apps-prod-notebook-piston-ratelimit@kubernetescrd
 spec:
   ingressClassName: traefik
   rules:
-    - host: piston.kakde.eu
+    - host: notebook.kakde.eu
       http:
         paths:
-          - path: /
-            pathType: Prefix
+          - path: /api/v2/execute
+            pathType: Exact
+            backend:
+              service:
+                name: piston
+                port:
+                  number: 2000
+          - path: /api/v2/runtimes
+            pathType: Exact
             backend:
               service:
                 name: piston
@@ -22,5 +30,5 @@ spec:
                   number: 2000
   tls:
     - hosts:
-        - piston.kakde.eu
-      secretName: piston-kakde-eu-tls
+        - notebook.kakde.eu
+      secretName: notebook-kakde-eu-tls
