@@ -14,4 +14,4 @@ patches:
 images:
 - name: ani2fun/note-book
   newName: ani2fun/note-book
-  newTag: 99ab48645e98697902022585734a126c0ddcd9fb
+  newTag: a99d07893e8086ce6c6f3fd67935653174184ce7
