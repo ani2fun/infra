@@ -12,4 +12,4 @@ patches:
 images:
 - name: ani2fun/portfolio-app
   newName: ani2fun/portfolio-app
-  newTag: 46c42980fb5cb1c15952178f6c0dd0a236a46e9c
+  newTag: 45bb3d86865b9a9c9f150f3facc285b7448fbd53
