@@ -1,22 +1,15 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-
 namespace: apps-prod
-
 resources:
-  - ../../base
-  - ingress.yaml
-
+- ../../base
+- ingress.yaml
 patches:
-  - patch: |-
-      - op: replace
-        path: /spec/replicas
-        value: 2
-    target:
-      kind: Deployment
-      name: portfolio-app
-
+- patch: "- op: replace\n  path: /spec/replicas\n  value: 2"
+  target:
+    kind: Deployment
+    name: portfolio-app
 images:
-  - name: ani2fun/portfolio-app
-    newName: ani2fun/portfolio-app
-    newTag: 960c42375c734445d0cc07a39a471901eca81a15
+- name: ani2fun/portfolio-app
+  newName: ani2fun/portfolio-app
+  newTag: 46c42980fb5cb1c15952178f6c0dd0a236a46e9c
