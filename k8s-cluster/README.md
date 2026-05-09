@@ -3,9 +3,10 @@
 This directory contains everything you need to rebuild the homelab Kubernetes
 cluster from four bare Ubuntu 24.04 machines and an internet connection.
 
-It is not a tutorial. The deep-dive explanations live in `_docs/k8s-homelab/`.
-This is the *executable* counterpart: the manifests, scripts, and inventory
-files you actually apply, in the order you actually apply them.
+It is not a tutorial. This is the *executable* counterpart: the manifests,
+scripts, and inventory files you actually apply, in the order you actually
+apply them. For a disaster-recovery runbook with verification gates, see
+`dr/README.md`.
 
 ---
 
@@ -47,7 +48,9 @@ Keycloak's database, and the Kubernetes API are never publicly reachable.
 | Directory | Purpose |
 |-----------|---------|
 | `inventory/` | Machine IPs, namespaces, network CIDRs, and a complete workload catalog. Read these first -- they are the single reference for "what number goes where." |
-| `bootstrap/wireguard/` | WireGuard config templates and sysctl tuning. This is layer 0: if the mesh is down, nothing else works. |
+| `dr/` | Disaster-recovery pack: runbook, snapshot, gates, secret-recovery decision tree, and per-component backup procedures. Start here after a total wipe. |
+| `bootstrap/host-prep/` | Layer 0: Ubuntu OS prep -- packages, sysctl, kernel modules, netplan templates, SSH hardening, NTP, custom firewall systemd units. Run before WireGuard. |
+| `bootstrap/wireguard/` | WireGuard config templates and sysctl tuning. Without the mesh nothing else works. |
 | `bootstrap/k3s/` | K3s server and agent install scripts, Calico CNI resources, and node label/taint setup. |
 | `platform/traefik/` | The full Traefik ingress stack: namespace, RBAC, Deployment, Service, IngressClass, plus the edge firewall guardrail. |
 | `platform/cert-manager/` | Helm install script, Cloudflare DNS-01 secret template, and both ClusterIssuers (staging + production). |
