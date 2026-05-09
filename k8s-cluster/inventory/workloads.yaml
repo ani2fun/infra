@@ -1,9 +1,16 @@
+# Workload catalog. The image_digest values are captured at snapshot time
+# (see k8s-cluster/dr/SNAPSHOT.md) and are the source of truth on rebuild.
+# Tags drift; digests don't.
+#
+# Refresh by running: scripts/dr/snapshot-live-state.sh
 workloads:
   - name: notebook-app
     namespace: apps-prod
     kind: Deployment
     managed_by: argocd
-    image: ani2fun/note-book:da2df55f9d144a6e6801adedb0377ad7dd81bec9
+    source_path: deploy/note-book/overlays/prod
+    image: ani2fun/note-book:c67847733a1ca1dd7cf276c1e7283fefba3757d4
+    image_digest: sha256:838ae5ff70816a3f8060ccce9257c343e601e88e5dbf545be0d53aaab65a5f80
     replicas: 2
     service:
       name: notebook-app
@@ -18,6 +25,7 @@ workloads:
     namespace: apps-dev
     kind: Deployment
     managed_by: kustomize
+    source_path: deploy/note-book/overlays/dev
     image_source: overlay-resolved
     service:
       name: notebook-app
@@ -32,7 +40,9 @@ workloads:
     namespace: apps-prod
     kind: Deployment
     managed_by: argocd
-    image: ani2fun/portfolio-app:960c42375c734445d0cc07a39a471901eca81a15
+    source_path: deploy/portfolio-app/overlays/prod
+    image: ani2fun/portfolio-app:45bb3d86865b9a9c9f150f3facc285b7448fbd53
+    image_digest: sha256:d505d1fdb23a19ebcfeaf9786457843c175218e830f6df324e5b76045abfc44a
     replicas: 2
     service:
       name: portfolio-app
@@ -43,26 +53,13 @@ workloads:
       tls_secret: kakde-eu-tls
       cluster_issuer: letsencrypt-prod-dns01
 
-  - name: piston
-    namespace: apps-prod
-    kind: Deployment
-    managed_by: argocd
-    image: ghcr.io/engineer-man/piston:latest
-    replicas: 1
-    service:
-      name: piston
-      port: 2000
-      target_port: 2000
-    ingress:
-      host: piston.kakde.eu
-      tls_secret: piston-kakde-eu-tls
-      cluster_issuer: letsencrypt-prod-dns01
-
   - name: portfolio-app-dev
     namespace: apps-dev
     kind: Deployment
     managed_by: kustomize
-    image_source: overlay-resolved
+    source_path: deploy/portfolio-app/overlays/dev
+    image: ani2fun/portfolio-app:960c42375c734445d0cc07a39a471901eca81a15
+    image_digest: sha256:f24479a4e1d44fc3628857a71b430eed95f2c932b5493cdfbc75620369c112f8
     service:
       name: portfolio-app
       port: 80
@@ -72,11 +69,67 @@ workloads:
       tls_secret: dev-kakde-eu-tls
       cluster_issuer: letsencrypt-staging-dns01
 
+  - name: piston
+    namespace: apps-prod
+    kind: Deployment
+    managed_by: argocd
+    source_path: deploy/piston/overlays/prod
+    # Piston manifest pins by digest; the :latest tag in the manifest is
+    # overridden by an `image:` field that includes @sha256.
+    image: ghcr.io/engineer-man/piston@sha256:2f66b7456189c4d713aa986d98eccd0b6ee16d26c7ec5f21b30e942756fd127a
+    image_digest: sha256:2f66b7456189c4d713aa986d98eccd0b6ee16d26c7ec5f21b30e942756fd127a
+    replicas: 1
+    service:
+      name: piston
+      port: 2000
+      target_port: 2000
+    # Piston has NO public Ingress of its own. It is reached only through
+    # the notebook-piston-api Ingress on `notebook.kakde.eu/api/v2/...`,
+    # rate-limited by the `notebook-piston-ratelimit` Traefik Middleware.
+    api_route:
+      via_ingress: notebook.kakde.eu
+      path_prefix: /api/v2
+      middleware: notebook-piston-ratelimit
+
+  - name: dsa-tracker-backend
+    namespace: apps-prod
+    kind: Deployment
+    managed_by: argocd
+    source_path: deploy/dsa-tracker/overlays/prod
+    image: ghcr.io/ani2fun/dsa-tracker-backend:a62470690a49f10432b0e15814d11823ac1cfdbe
+    image_digest: sha256:23092d4edc044ab3d0fe51fbd420292aae6fe8dbe80b0879e6d506f9e820a07b
+    replicas: 2
+    service:
+      name: dsa-tracker-backend
+      port: 8080
+      target_port: 8080
+    secrets:
+      - dsa-tracker-db   # SealedSecret committed at deploy/dsa-tracker/overlays/prod/sealedsecret.yaml
+
+  - name: dsa-tracker-frontend
+    namespace: apps-prod
+    kind: Deployment
+    managed_by: argocd
+    source_path: deploy/dsa-tracker/overlays/prod
+    image: ghcr.io/ani2fun/dsa-tracker-frontend:1fcdfe9051fdfc4224a8b4bb3b553161e1a4f593
+    image_digest: sha256:109b5935d94ea2fa5ee26f4f5cb1142fae3aa80aa7e2628d46f0eef8b64d56ec
+    replicas: 2
+    service:
+      name: dsa-tracker-frontend
+      port: 80
+      target_port: 3000
+    ingress:
+      host: dsa-tracker.kakde.eu
+      tls_secret: dsa-tracker-kakde-eu-tls
+      cluster_issuer: letsencrypt-prod-dns01
+
   - name: postgresql
     namespace: databases-prod
     kind: StatefulSet
     managed_by: kubectl-manifests
+    source_path: k8s-cluster/platform/postgresql/
     image: postgres:17.9
+    image_digest: sha256:2cd82735a36356842d5eb1ef80db3ae8f1154172f0f653db48fde079b2a0b7f7
     replicas: 1
     pvc:
       storage_class: local-path
@@ -89,7 +142,9 @@ workloads:
     namespace: identity
     kind: Deployment
     managed_by: kubectl-manifests
+    source_path: k8s-cluster/apps/keycloak/
     image: quay.io/keycloak/keycloak:26.5.5
+    image_digest: sha256:a7b0cb7a43a1235a61872883414d3f1d9a3ceac9df6e5907bd12202778a6265c
     replicas: 1
     service:
       name: keycloak
@@ -102,6 +157,7 @@ workloads:
     secrets:
       - keycloak-admin-secret
       - keycloak-db-secret
+      - keycloak-github-oauth   # SealedSecret committed at k8s-cluster/apps/keycloak/overlays/prod/github-oauth-sealedsecret.yaml
     database:
       type: postgres
       host: postgresql.databases-prod.svc.cluster.local
@@ -109,10 +165,12 @@ workloads:
       name: keycloak
 
   - name: whoami
-    namespace: apps-prod
+    namespace: apps
     kind: Deployment
     managed_by: kubectl-manifests
-    image: traefik/whoami
+    source_path: k8s-cluster/apps/whoami/   # populated in PR 8
+    image: traefik/whoami:latest
+    image_digest: sha256:200689790a0a0ea48ca45992e0450bc26ccab5307375b41c84dfc4f2475937ab
     replicas: 1
     service:
       name: whoami
@@ -120,30 +178,38 @@ workloads:
       target_port: 80
     ingress:
       host: whoami.kakde.eu
+      tls_secret: whoami-kakde-eu-tls
+      cluster_issuer: letsencrypt-prod-dns01
 
-  - name: whoami-oauth2-proxy
-    namespace: apps-prod
-    kind: Deployment
-    managed_by: kubectl-manifests
-    image: quay.io/oauth2-proxy/oauth2-proxy:v7.14.3
-    replicas: 1
-    service:
-      name: whoami-oauth2-proxy
-      port: 4180
-      target_port: 4180
-    ingress:
-      host: whoami-auth.kakde.eu
-    secrets:
-      - whoami-oauth2-proxy
-    oidc:
-      provider: keycloak-oidc
-      issuer_url: https://keycloak.kakde.eu/realms/kakde
-      redirect_url: https://whoami-auth.kakde.eu/oauth2/callback
+  # whoami-oauth2-proxy is NOT currently deployed. The manifests are kept
+  # in k8s-cluster/apps/whoami/ as a deployable template; activate per the
+  # README in that directory if/when whoami-auth.kakde.eu is needed.
+  # - name: whoami-oauth2-proxy
+  #   namespace: apps
+  #   kind: Deployment
+  #   managed_by: kubectl-manifests
+  #   source_path: k8s-cluster/apps/whoami/
+  #   image: quay.io/oauth2-proxy/oauth2-proxy:v7.14.3
+  #   replicas: 1
+  #   service:
+  #     name: whoami-oauth2-proxy
+  #     port: 4180
+  #     target_port: 4180
+  #   ingress:
+  #     host: whoami-auth.kakde.eu
+  #   secrets:
+  #     - whoami-oauth2-proxy
+  #   oidc:
+  #     provider: keycloak-oidc
+  #     issuer_url: https://keycloak.kakde.eu/realms/kakde
+  #     redirect_url: https://whoami-auth.kakde.eu/oauth2/callback
 
   - name: argocd
     namespace: argocd
     kind: platform
     managed_by: kubectl + manual patches
+    image: quay.io/argoproj/argocd:v3.3.3
+    image_digest: sha256:8b9a0993937850c1ee6e2ada47a2be8259d512e959ae58afa39936658f7b52e7
     host: argocd.kakde.eu
     pinned_node_label:
       workload: argocd

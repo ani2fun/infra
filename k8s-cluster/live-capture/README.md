@@ -24,3 +24,11 @@ The collector exports **secret metadata only** by default. It does not dump secr
 
 After collecting output, compare the live manifests against the copied repo manifests in this directory and then promote the live-verified manifests into version control.
 
+## Related: DR snapshotting
+
+For a structured snapshot that pins versions, image digests, Argo CD
+revisions, and host facts in a markdown file you can keep in Git, run
+`scripts/dr/snapshot-live-state.sh` instead. It calls into this collector
+for the per-host details and adds the cluster-wide pin data on top. See
+`k8s-cluster/dr/SNAPSHOT.md` for the current frozen reference.
+
