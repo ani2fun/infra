@@ -1,43 +1,47 @@
-# Keycloak capture gap
+# Keycloak
 
-This directory now contains a **starter GitOps scaffold** for Keycloak, but it is not yet a confirmed export of the live cluster state.
+`base/` and `overlays/prod/` reflect the live Keycloak deployment in the
+`identity` namespace. Image: `quay.io/keycloak/keycloak:26.5.5`. Database:
+PostgreSQL StatefulSet in `databases-prod`.
 
-## What still needs to be exported from the live cluster
+## Layout
 
-- namespace name
-- Deployment or StatefulSet manifest
-- image tag and startup args
-- Service and Ingress manifests
-- TLS secret reference
-- Secret names and external secret references
-- database connection details and the PostgreSQL database or schema used by Keycloak
-- any PVCs, storage classes, and backup routines
-- realm export, clients, redirect URIs, and admin bootstrap method
+- `base/deployment.yaml` -- Keycloak Deployment (1 replica, anti-affinity off the edge node)
+- `base/service.yaml` -- ClusterIP `keycloak` (port 80 -> 8080)
+- `overlays/prod/ingress.yaml` -- `keycloak.kakde.eu` (cert-manager, Traefik)
+- `overlays/prod/github-oauth-sealedsecret.yaml` -- `keycloak-github-oauth` (encrypted)
+- `overlays/prod/kustomization.yaml`
 
-## Scaffold added here
+## Secrets referenced
 
-- `base/` contains a starting Deployment and Service
-- `overlays/prod/` contains a starting Ingress and Kustomization
-- `overlays/prod/github-oauth-sealedsecret.example.yaml` shows the intended GitHub OAuth secret shape
+- `keycloak-admin-secret` -- bootstrap admin (keys: `username`, `password`).
+  Plaintext source: password manager. See [`../../dr/secret-recovery.md`](../../dr/secret-recovery.md).
+- `keycloak-db-secret` -- DB role (keys: `username`, `password`). Must
+  match the role recorded in `pg_authid`. See secret-recovery doc.
+- `keycloak-github-oauth` -- restored automatically by sealed-secrets if the
+  controller key is present, otherwise regenerated at github.com and resealed
+  via `scripts/secrets/rotate-keycloak-github-oauth.sh`.
 
-Treat these files as a draft to be reconciled against the live cluster before Argo CD points at them.
+## Realm export and import
 
-## Production GitHub OAuth secret
+The `kakde` realm contains every OIDC client config and lives only in the
+PostgreSQL `keycloak` database. Export it as portable JSON via:
 
-The current `infra` repo does not contain the live Keycloak manifests yet, so there is no committed location today for the production GitHub OAuth client secret.
+```bash
+scripts/dr/backup-keycloak-realm.sh /path/to/secure/dir/
+```
 
-When Keycloak is exported into GitOps, the GitHub broker secret should live alongside the Keycloak app manifests as a SealedSecret in the Keycloak namespace, not under `deploy/dsa-tracker/`.
+Full procedure: [`../../dr/keycloak-realm-export.md`](../../dr/keycloak-realm-export.md).
 
-Recommended shape once Keycloak manifests are captured:
+## Live cluster verification
 
-- path: `k8s-cluster/apps/keycloak/overlays/prod/github-oauth-sealedsecret.yaml`
-- runtime secret name: `keycloak-github-oauth`
-- secret keys:
-  - `client-id`
-  - `client-secret`
+```bash
+curl -sI https://keycloak.kakde.eu/realms/kakde/.well-known/openid-configuration | head -1
+# expected: HTTP/2 200
+```
 
-Then the Keycloak Deployment or StatefulSet should reference that runtime secret and the realm or broker config should read those values for the GitHub identity provider.
+## See also
 
-## How this pack helps
-
-`../../live-capture/collect-live-state.sh` is designed to discover Keycloak workloads and dump their namespace resources once SSH access is available.
+- [`../../dr/RUNBOOK.md`](../../dr/RUNBOOK.md) -- operator runbook (Layer 9)
+- [`../../platform/postgresql/README.md`](../../platform/postgresql/README.md) -- backend database
+- [`../../dr/secret-recovery.md`](../../dr/secret-recovery.md) -- secret-by-secret recovery
