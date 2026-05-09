@@ -303,6 +303,15 @@ So for disaster recovery, remember:
 - the cluster contains the private key that can decrypt them
 - losing both the cluster keys and the original secret sources means you must recreate the secrets
 
+## Master key backup and restore
+
+The procedure for backing up and restoring the controller's master key is
+documented in [`../../dr/sealed-secrets-key-backup.md`](../../dr/sealed-secrets-key-backup.md).
+Helper scripts:
+
+- `scripts/dr/sealed-secrets-key-backup.sh <output-dir>` -- export the live key to a YAML file (keep off-cluster)
+- `scripts/dr/sealed-secrets-key-restore.sh <backup-yaml>` -- restore on a freshly-installed cluster
+
 ## Recommended team workflow
 
 For future changes, use this pattern:
