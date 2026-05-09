@@ -5,10 +5,22 @@ resources:
 - ../../base
 - ingress.yaml
 patches:
-- patch: "- op: replace\n  path: /spec/replicas\n  value: 2"
-  target:
-    kind: Deployment
-    name: portfolio-app
+  - patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 2
+    target:
+      kind: Deployment
+      name: portfolio-app
+  - patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/env
+        value:
+          - name: PISTON_URL
+            value: "http://piston:2000"
+    target:
+      kind: Deployment
+      name: portfolio-app
 images:
 - name: ani2fun/portfolio-app
   newName: ani2fun/portfolio-app
