@@ -1,0 +1,26 @@
+# /etc/netplan/50-cloud-init.yaml on vm-1 / ctb-edge-1.
+# Static public IPv4 + IPv6 from Contabo. Adjust the MAC address match if
+# the VPS is reprovisioned (Contabo assigns a new MAC on a new instance).
+# After installing, set permissions: chmod 600 /etc/netplan/50-cloud-init.yaml
+network:
+  version: 2
+  ethernets:
+    eth0:
+      match:
+        macaddress: "00:50:56:61:be:7e"
+      addresses:
+      - "84.247.143.66/20"
+      - "2a02:c207:2311:7393:0000:0000:0000:0001/64"
+      nameservers:
+        addresses:
+        - 213.136.95.10
+        - 213.136.95.11
+        - 2a02:c207::1:53
+        search: []
+      set-name: "eth0"
+      routes:
+      - to: "default"
+        via: "84.247.128.1"
+      - on-link: true
+        to: "default"
+        via: "fe80::1"

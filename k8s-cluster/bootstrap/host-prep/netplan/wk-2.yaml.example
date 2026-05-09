@@ -1,0 +1,38 @@
+# wk-2 currently runs over Wi-Fi (wlo1) but the recommended rebuild path is
+# WIRED Ethernet. The wired template below is the default. The Wi-Fi
+# fallback is included as a commented-out block; uncomment ONLY if the node
+# can't be cabled.
+#
+# IMPORTANT: do NOT commit the live Wi-Fi PSK to Git. Pull it from the
+# password manager and substitute it into the placeholder below at deploy
+# time. Then `chmod 600 /etc/netplan/50-cloud-init.yaml`.
+#
+# === FILE 1: /etc/netplan/01-network-manager-all.yaml ===
+# network:
+#   version: 2
+#   renderer: NetworkManager
+#
+# === FILE 2: /etc/netplan/50-cloud-init.yaml ===
+
+# --- DEFAULT: WIRED ETHERNET ---
+network:
+  version: 2
+  ethernets:
+    eth0:
+      dhcp4: true
+# Note: replace `eth0` with the actual wired interface name on the rebuilt
+# host (`ip link` to confirm).
+
+# --- ALTERNATIVE: WI-FI FALLBACK (uncomment only if no Ethernet) ---
+# network:
+#   version: 2
+#   wifis:
+#     wlo1:
+#       renderer: NetworkManager
+#       dhcp4: true
+#       dhcp6: true
+#       access-points:
+#         "Macaw-Tucan":
+#           auth:
+#             key-management: "psk"
+#             password: "<<REPLACE_WITH_WIFI_PSK>>"

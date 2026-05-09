@@ -1,0 +1,14 @@
+[Unit]
+Description=Lock down K3s API (6443/9345) to wg0 + localhost
+Wants=network-online.target
+After=network-online.target
+After=wg-quick@wg0.service
+After=netfilter-persistent.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/k3s-api-lockdown.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

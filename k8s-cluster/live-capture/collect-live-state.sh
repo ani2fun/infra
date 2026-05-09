@@ -49,6 +49,37 @@ dump_host() {
 set -euo pipefail
 echo "### hostname"
 hostnamectl 2>/dev/null || hostname
+echo "### os-release"
+. /etc/os-release; echo "$PRETTY_NAME"
+echo "### kernel"
+uname -r
+echo "### timedatectl"
+timedatectl 2>/dev/null || true
+echo "### swap"
+swapon --show 2>/dev/null || echo "(no swap)"
+echo "### lsmod-k8s"
+lsmod | awk "{print \$1}" | grep -E "^(wireguard|br_netfilter|vxlan|overlay|nf_conntrack|ip_vs)$" | sort -u || true
+echo "### sysctl-k8s"
+for k in net.ipv4.ip_forward net.ipv6.conf.all.forwarding \
+         net.bridge.bridge-nf-call-iptables net.bridge.bridge-nf-call-ip6tables \
+         net.ipv4.conf.all.rp_filter net.ipv4.conf.default.rp_filter \
+         net.ipv4.conf.wg0.rp_filter ; do
+  printf "%s = %s\n" "$k" "$(sysctl -n "$k" 2>/dev/null || echo "?")"
+done
+echo "### apt-manual"
+apt-mark showmanual 2>/dev/null | sort
+echo "### sshd-effective"
+sshd -T 2>/dev/null | grep -E "^(permitrootlogin|passwordauthentication|pubkeyauthentication|kbdinteractiveauthentication|port)\b" || true
+echo "### custom-firewall-services"
+for svc in homelab-fw-ms1.service homelab-fw-edge.service \
+           k3s-api-lockdown.service k3s-api-lockdown-allow-cluster.service \
+           edge-guardrail.service ; do
+  if systemctl cat "$svc" >/dev/null 2>&1; then
+    state="$(systemctl is-enabled "$svc" 2>/dev/null || echo unknown)"
+    active="$(systemctl is-active "$svc" 2>/dev/null || echo unknown)"
+    printf "%-44s enabled=%-10s active=%s\n" "$svc" "$state" "$active"
+  fi
+done
 echo "### ip-br"
 ip -br address
 echo "### routes"
