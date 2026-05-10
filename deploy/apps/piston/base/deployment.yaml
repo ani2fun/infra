@@ -104,8 +104,11 @@ spec:
               value: "4"
             - name: PISTON_COMPILE_TIMEOUT
               value: "10000"
+            # Match codefolio's PistonWire request (run_timeout=10000).
+            # 3s was the public-piston default; in a homelab where we own
+            # the runner we can let interactive Cortex examples take longer.
             - name: PISTON_RUN_TIMEOUT
-              value: "3000"
+              value: "10000"
             - name: PISTON_COMPILE_MEMORY_LIMIT
               value: "536870912"
             - name: PISTON_RUN_MEMORY_LIMIT
