@@ -1,0 +1,13 @@
+# NOT YET DEPLOYED. See oauth2-proxy-deployment.yaml for activation steps.
+apiVersion: v1
+kind: Service
+metadata:
+  name: whoami-oauth2-proxy
+  namespace: apps
+spec:
+  selector:
+    app: whoami-oauth2-proxy
+  ports:
+    - name: http
+      port: 4180
+      targetPort: 4180

@@ -1,0 +1,28 @@
+# NOT YET DEPLOYED. Template Ingress for the OAuth2-protected variant.
+# Activate together with the oauth2-proxy resources in base/.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: whoami-auth
+  namespace: apps
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    cert-manager.io/cluster-issuer: letsencrypt-prod-dns01
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: whoami-auth.kakde.eu
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: whoami-oauth2-proxy
+                port:
+                  number: 4180
+  tls:
+    - hosts:
+        - whoami-auth.kakde.eu
+      secretName: whoami-auth-kakde-eu-tls

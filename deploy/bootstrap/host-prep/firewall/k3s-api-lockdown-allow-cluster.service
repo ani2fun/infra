@@ -1,0 +1,17 @@
+[Unit]
+Description=Allow Pod/Service CIDRs to reach K3s API ports (6443,9345) after lockdown
+After=k3s-api-lockdown.service
+Requires=k3s-api-lockdown.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+
+# Allow pod CIDR
+ExecStart=/bin/sh -lc 'iptables -C INPUT -s 10.42.0.0/16 -p tcp -m multiport --dports 6443,9345 -j ACCEPT 2>/dev/null || iptables -I INPUT 1 -s 10.42.0.0/16 -p tcp -m multiport --dports 6443,9345 -j ACCEPT'
+
+# Allow service CIDR
+ExecStart=/bin/sh -lc 'iptables -C INPUT -s 10.43.0.0/16 -p tcp -m multiport --dports 6443,9345 -j ACCEPT 2>/dev/null || iptables -I INPUT 1 -s 10.43.0.0/16 -p tcp -m multiport --dports 6443,9345 -j ACCEPT'
+
+[Install]
+WantedBy=multi-user.target

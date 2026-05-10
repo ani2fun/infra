@@ -1,0 +1,17 @@
+# Additional packages on the edge node (vm-1 / ctb-edge-1).
+# Comment lines and blanks are ignored.
+
+# Virtual machine kernel (Contabo image)
+linux-virtual
+
+# Cloud-init is preinstalled by the Contabo image; listed for completeness so
+# the script does not remove it.
+cloud-init
+
+# Notes:
+# - Contabo image installs vmtoolsd and similar guest agents; leave those
+#   alone.
+# - Do NOT install ubuntu-desktop on the edge. It stays headless.
+# - SSH access is gated by the edge_guardrail nftables allowlist, which
+#   permits SSH only from a specific home IP. See
+#   firewall/edge-allowlist.env.example.

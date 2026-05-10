@@ -1,0 +1,22 @@
+apiVersion: operator.tigera.io/v1
+kind: Installation
+metadata:
+  name: default
+spec:
+  calicoNetwork:
+    bgp: Disabled
+    mtu: 1370
+    nodeAddressAutodetectionV4:
+      kubernetes: NodeInternalIP
+    ipPools:
+      - cidr: 10.42.0.0/16
+        encapsulation: VXLAN
+        natOutgoing: Enabled
+        nodeSelector: all()
+---
+apiVersion: operator.tigera.io/v1
+kind: APIServer
+metadata:
+  name: default
+spec: {}
+

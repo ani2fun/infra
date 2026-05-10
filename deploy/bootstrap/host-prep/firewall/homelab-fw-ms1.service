@@ -1,0 +1,12 @@
+[Unit]
+Description=Homelab host firewall guardrails (ms-1)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/homelab-fw-ms1.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -10,12 +10,24 @@ spec:
   policyTypes:
     - Ingress
   ingress:
+    # Public route: traefik → piston (only used historically by note-book's
+    # browser-side `/api/v2/execute` Ingress; no longer required after the
+    # codefolio cutover but kept in case future apps re-publish the route).
     - from:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: traefik
         - ipBlock:
             cidr: 10.42.102.128/32
+      ports:
+        - protocol: TCP
+          port: 2000
+    # In-cluster server-side proxy: codefolio /api/run → piston:2000.
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: codefolio
+              app.kubernetes.io/component: app
       ports:
         - protocol: TCP
           port: 2000

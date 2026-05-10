@@ -1,0 +1,19 @@
+# wk-1 has both:
+#   /etc/netplan/01-network-manager-all.yaml   (NetworkManager catch-all)
+#   /etc/netplan/50-cloud-init.yaml            (DHCP for the wired NIC)
+# Replace both files with the contents below split into two files.
+# After installing, set permissions: chmod 600 /etc/netplan/*.yaml
+#
+# === FILE 1: /etc/netplan/01-network-manager-all.yaml ===
+# network:
+#   version: 2
+#   renderer: NetworkManager
+#
+# === FILE 2: /etc/netplan/50-cloud-init.yaml ===
+network:
+  version: 2
+  ethernets:
+    enp170s0:
+      dhcp4: true
+# Note: enp170s0 is the wired interface name on the current hardware. After a
+# board swap, run `ip link` and update the name here.
