@@ -21,8 +21,10 @@ spec:
         - name: redis
           image: redis:7-alpine
           imagePullPolicy: IfNotPresent
+          # Bypass the docker-entrypoint.sh setpriv dance — we already start
+          # as the redis user (UID 999) so no uid switch is needed.
+          command: ["redis-server"]
           args:
-            - redis-server
             - --save
             - ""
             - --appendonly
@@ -48,6 +50,9 @@ spec:
               cpu: 200m
               memory: 128Mi
           securityContext:
+            runAsNonRoot: true
+            runAsUser: 999
+            runAsGroup: 1000
             allowPrivilegeEscalation: false
             capabilities:
               drop:

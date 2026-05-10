@@ -21,6 +21,8 @@ spec:
         - name: mongo
           image: mongo:7
           imagePullPolicy: IfNotPresent
+          # Run as the mongodb user (UID 999 in the official image) directly,
+          # avoiding the entrypoint chown that fails under dropped capabilities.
           ports:
             - name: mongo
               containerPort: 27017
@@ -52,6 +54,9 @@ spec:
             - name: data
               mountPath: /data/db
           securityContext:
+            runAsNonRoot: true
+            runAsUser: 999
+            runAsGroup: 999
             allowPrivilegeEscalation: false
             capabilities:
               drop:
@@ -60,6 +65,9 @@ spec:
         - name: data
           emptyDir: {}
       securityContext:
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
         seccompProfile:
           type: RuntimeDefault
 ---
