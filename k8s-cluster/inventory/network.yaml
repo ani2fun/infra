@@ -20,9 +20,7 @@ network:
     domain: kakde.eu
     public_hosts:
       - kakde.eu
-      - dev.kakde.eu
-      - notebook.kakde.eu
-      - dev.notebook.kakde.eu
+      - dev.codefolio.kakde.eu
       - argocd.kakde.eu
       - keycloak.kakde.eu
       - whoami.kakde.eu

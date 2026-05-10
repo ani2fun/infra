@@ -58,8 +58,7 @@ Keycloak's database, and the Kubernetes API are never publicly reachable.
 | `platform/postgresql/` | The complete PostgreSQL StatefulSet stack: namespace, secrets, init scripts, services, NetworkPolicy, and the StatefulSet itself. |
 | `apps/keycloak/` | Keycloak identity provider (Deployment, Service, Ingress, secret templates). |
 | `apps/whoami/` | A lightweight test app with an OAuth2 Proxy sidecar for verifying the Keycloak OIDC flow end-to-end. |
-| `apps/notebook/` | Notebook application (Kustomize base + dev/prod overlays). Deployed via Argo CD in production. |
-| `apps/portfolio/` | Portfolio application (same Kustomize pattern). Deployed via Argo CD in production. |
+| `apps/codefolio/` | Codefolio: Scala fullstack app at the apex `kakde.eu`, replacing the retired notebook + portfolio apps. Kustomize base + dev/prod overlays, deployed via Argo CD in production. |
 | `live-capture/` | A script that SSHs into every node and dumps the real running state. Useful for auditing drift. |
 
 ---
@@ -145,10 +144,14 @@ will leave you debugging symptoms of a missing foundation.
 13. **Deploy whoami + OAuth2 Proxy** (optional, but useful for verifying the
     full auth chain). Apply the manifests in `apps/whoami/`.
 
-14. **Deploy notebook and portfolio via Argo CD.**
-    Apply the Application manifests in `platform/argocd/applications/`.
-    Argo CD will sync the Kustomize overlays from this repository and deploy
-    both apps into `apps-prod`.
+14. **Deploy codefolio via Argo CD.**
+    Apply the Application manifest in `platform/argocd/applications/codefolio.yaml`
+    (and `dsa-tracker.yaml` if rebuilding that too). Argo CD syncs the Kustomize
+    overlay from this repository and deploys codefolio (plus its in-namespace
+    Redis cache and Mongo event log) into `apps-prod`. The shared cluster
+    Postgres in `databases-prod` provides the persistent visit counter; the
+    `codefolio` database and role must be provisioned manually first — see
+    `deploy/codefolio/bootstrap.sql`.
 
 ### Verification
 
@@ -167,8 +170,8 @@ kubectl get certificate -A
 kubectl get application -n argocd
 
 # Public endpoints (from outside the cluster)
-curl -sI https://kakde.eu          | head -3
-curl -sI https://notebook.kakde.eu | head -3
+curl -sI https://kakde.eu          | head -3   # codefolio
+curl -s  https://kakde.eu/api/health | jq         # codefolio: postgres/redis/mongo status
 curl -sI https://keycloak.kakde.eu | head -3
 curl -sI https://argocd.kakde.eu   | head -3
 curl -sI https://whoami.kakde.eu   | head -3

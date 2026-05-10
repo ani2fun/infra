@@ -1,7 +1,7 @@
 # Keycloak realm export and import
 
 The `kakde` realm holds every OIDC client (dsa-tracker, oauth2-proxy,
-note-book, future apps), the GitHub identity provider config, role
+codefolio, future apps), the GitHub identity provider config, role
 mappings, and user accounts. **All of that lives only in the Keycloak
 PostgreSQL schema.** Lose the schema and you lose every client
 configuration.

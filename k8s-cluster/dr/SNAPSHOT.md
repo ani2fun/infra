@@ -62,9 +62,7 @@ the corresponding port back to each home node so the edge can reach them.
 All A records resolve to `84.247.143.66`:
 
 - `kakde.eu`
-- `dev.kakde.eu`
-- `notebook.kakde.eu`
-- `dev.notebook.kakde.eu`
+- `dev.codefolio.kakde.eu`
 - `argocd.kakde.eu`
 - `keycloak.kakde.eu`
 - `whoami.kakde.eu`
@@ -130,9 +128,9 @@ restore; tags can drift.
 
 | App | Image | Digest |
 |---|---|---|
-| portfolio-app (prod) | `docker.io/ani2fun/portfolio-app:45bb3d86865b9a9c9f150f3facc285b7448fbd53` | `sha256:d505d1fdb23a19ebcfeaf9786457843c175218e830f6df324e5b76045abfc44a` |
-| portfolio-app (dev) | `docker.io/ani2fun/portfolio-app:960c42375c734445d0cc07a39a471901eca81a15` | `sha256:f24479a4e1d44fc3628857a71b430eed95f2c932b5493cdfbc75620369c112f8` |
-| notebook-app (prod) | `docker.io/ani2fun/note-book:c67847733a1ca1dd7cf276c1e7283fefba3757d4` | `sha256:838ae5ff70816a3f8060ccce9257c343e601e88e5dbf545be0d53aaab65a5f80` |
+| codefolio (prod) | `ghcr.io/ani2fun/codefolio:<sha>` | `<captured-on-next-snapshot>` |
+| codefolio-redis | `docker.io/library/redis:7-alpine` | `<captured-on-next-snapshot>` |
+| codefolio-mongo | `docker.io/library/mongo:7` | `<captured-on-next-snapshot>` |
 | dsa-tracker-backend | `ghcr.io/ani2fun/dsa-tracker-backend:a62470690a49f10432b0e15814d11823ac1cfdbe` | `sha256:23092d4edc044ab3d0fe51fbd420292aae6fe8dbe80b0879e6d506f9e820a07b` |
 | dsa-tracker-frontend | `ghcr.io/ani2fun/dsa-tracker-frontend:1fcdfe9051fdfc4224a8b4bb3b553161e1a4f593` | `sha256:109b5935d94ea2fa5ee26f4f5cb1142fae3aa80aa7e2628d46f0eef8b64d56ec` |
 | piston | `ghcr.io/engineer-man/piston:latest` | `sha256:2f66b7456189c4d713aa986d98eccd0b6ee16d26c7ec5f21b30e942756fd127a` |
@@ -156,12 +154,11 @@ templates; deploy via the steps in that directory's README if/when
 
 | Application | Source path | Tracked branch | Synced commit | Sync policy |
 |---|---|---|---|---|
-| `portfolio-app` | `deploy/portfolio-app/overlays/prod` | `main` | `b2e353931c637ecc391cf60e3d8be2070bed4f69` | auto, prune, selfHeal |
-| `note-book` | `deploy/note-book/overlays/prod` | `main` | `b2e353931c637ecc391cf60e3d8be2070bed4f69` | auto, prune, selfHeal |
+| `codefolio` | `deploy/codefolio/overlays/prod` | `main` | `<captured-on-next-snapshot>` | auto, prune, selfHeal |
 | `piston` | `deploy/piston/overlays/prod` | `main` | `b2e353931c637ecc391cf60e3d8be2070bed4f69` | auto, prune, selfHeal |
 | `dsa-tracker` | `deploy/dsa-tracker/overlays/prod` | `main` | `b2e353931c637ecc391cf60e3d8be2070bed4f69` | auto, prune, selfHeal |
 
-All four Applications point at `https://github.com/ani2fun/infra.git`.
+All three Applications point at `https://github.com/ani2fun/infra.git`.
 
 ---
 

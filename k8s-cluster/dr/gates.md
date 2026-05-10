@@ -51,7 +51,7 @@ ssh vm-1 'for p in 51820 51821 51822; do timeout 2 nc -uvz 82.123.119.181 $p 2>&
 **L1-B** Cloudflare A records resolve to the edge IP.
 
 ```bash
-for h in kakde.eu dev.kakde.eu notebook.kakde.eu argocd.kakde.eu keycloak.kakde.eu whoami.kakde.eu; do
+for h in kakde.eu dev.codefolio.kakde.eu argocd.kakde.eu keycloak.kakde.eu whoami.kakde.eu dsa-tracker.kakde.eu; do
   echo "$h -> $(dig +short $h @1.1.1.1)"
 done
 # expected: every record returns 84.247.143.66
@@ -179,11 +179,11 @@ ssh ms-1 'kubectl -n argocd get pods'
 # all Running
 ```
 
-**L7-B** All four Applications Synced + Healthy.
+**L7-B** All three Applications Synced + Healthy.
 
 ```bash
 ssh ms-1 'kubectl -n argocd get application -o wide'
-# expected: 4 rows (dsa-tracker, note-book, piston, portfolio-app)
+# expected: 3 rows (codefolio, dsa-tracker, piston)
 # all Synced + Healthy
 ```
 
@@ -248,7 +248,7 @@ ssh ms-1 'scripts/dr/backup-keycloak-realm.sh /tmp'
 **L10-A** Every public host responds.
 
 ```bash
-for h in kakde.eu dev.kakde.eu notebook.kakde.eu dev.notebook.kakde.eu \
+for h in kakde.eu dev.codefolio.kakde.eu \
          argocd.kakde.eu keycloak.kakde.eu whoami.kakde.eu \
          dsa-tracker.kakde.eu; do
   printf "%-32s " "$h"

@@ -346,18 +346,17 @@ ssh root@ms-1 'bash -s' < k8s-cluster/platform/argocd/configure-argocd.sh
 ssh root@ms-1 'kubectl apply -f' k8s-cluster/platform/argocd/argocd-ingress.yaml
 ```
 
-### L7.3 Apply the four Applications
+### L7.3 Apply the three Applications
 
 ```bash
-ssh root@ms-1 'kubectl apply -f' k8s-cluster/platform/argocd/applications/note-book.yaml
-ssh root@ms-1 'kubectl apply -f' k8s-cluster/platform/argocd/applications/portfolio-app.yaml
+ssh root@ms-1 'kubectl apply -f' k8s-cluster/platform/argocd/applications/codefolio.yaml
 ssh root@ms-1 'kubectl apply -f' k8s-cluster/platform/argocd/applications/dsa-tracker.yaml
 ssh root@ms-1 'kubectl apply -f' k8s-cluster/platform/argocd/applications/piston.yaml
 ```
 
 (or `kubectl apply -f k8s-cluster/platform/argocd/applications/`)
 
-Argo CD will sync the four overlays from `deploy/.../overlays/prod/` in
+Argo CD will sync the three overlays from `deploy/.../overlays/prod/` in
 this repo. Each app's `SealedSecret` (where applicable) decrypts via the
 controller key restored in L4.
 
@@ -484,7 +483,7 @@ If you want the OIDC-protected variant, follow the activation steps in
 End-to-end public reachability:
 
 ```bash
-for h in kakde.eu dev.kakde.eu notebook.kakde.eu dev.notebook.kakde.eu \
+for h in kakde.eu dev.codefolio.kakde.eu \
          argocd.kakde.eu keycloak.kakde.eu whoami.kakde.eu \
          dsa-tracker.kakde.eu; do
   printf "%-32s " "$h"

@@ -4,69 +4,68 @@
 #
 # Refresh by running: scripts/dr/snapshot-live-state.sh
 workloads:
-  - name: notebook-app
+  - name: codefolio
     namespace: apps-prod
     kind: Deployment
     managed_by: argocd
-    source_path: deploy/note-book/overlays/prod
-    image: ani2fun/note-book:c67847733a1ca1dd7cf276c1e7283fefba3757d4
-    image_digest: sha256:838ae5ff70816a3f8060ccce9257c343e601e88e5dbf545be0d53aaab65a5f80
+    source_path: deploy/codefolio/overlays/prod
+    image: ghcr.io/ani2fun/codefolio:latest
+    # image_digest captured at next snapshot run (scripts/dr/snapshot-live-state.sh)
     replicas: 2
     service:
-      name: notebook-app
+      name: codefolio
       port: 80
-      target_port: 3000
-    ingress:
-      host: notebook.kakde.eu
-      tls_secret: notebook-kakde-eu-tls
-      cluster_issuer: letsencrypt-prod-dns01
-
-  - name: notebook-app-dev
-    namespace: apps-dev
-    kind: Deployment
-    managed_by: kustomize
-    source_path: deploy/note-book/overlays/dev
-    image_source: overlay-resolved
-    service:
-      name: notebook-app
-      port: 80
-      target_port: 3000
-    ingress:
-      host: dev.notebook.kakde.eu
-      tls_secret: dev-notebook-kakde-eu-tls
-      cluster_issuer: letsencrypt-staging-dns01
-
-  - name: portfolio-app
-    namespace: apps-prod
-    kind: Deployment
-    managed_by: argocd
-    source_path: deploy/portfolio-app/overlays/prod
-    image: ani2fun/portfolio-app:45bb3d86865b9a9c9f150f3facc285b7448fbd53
-    image_digest: sha256:d505d1fdb23a19ebcfeaf9786457843c175218e830f6df324e5b76045abfc44a
-    replicas: 2
-    service:
-      name: portfolio-app
-      port: 80
-      target_port: 3000
+      target_port: 8080
     ingress:
       host: kakde.eu
       tls_secret: kakde-eu-tls
       cluster_issuer: letsencrypt-prod-dns01
+    secrets:
+      - codefolio-db   # SealedSecret committed at deploy/codefolio/overlays/prod/sealedsecret.yaml
+    backing_stores:
+      - postgres: postgresql.databases-prod.svc.cluster.local:5432/codefolio (shared)
+      - redis: codefolio-redis.apps-prod (in-namespace, ephemeral cache)
+      - mongo: codefolio-mongo.apps-prod (in-namespace, ephemeral event log)
 
-  - name: portfolio-app-dev
+  - name: codefolio-redis
+    namespace: apps-prod
+    kind: Deployment
+    managed_by: argocd
+    source_path: deploy/codefolio/overlays/prod
+    image: redis:7-alpine
+    replicas: 1
+    persistence: ephemeral   # cache only; no PVC
+    service:
+      name: codefolio-redis
+      port: 6379
+      target_port: 6379
+
+  - name: codefolio-mongo
+    namespace: apps-prod
+    kind: Deployment
+    managed_by: argocd
+    source_path: deploy/codefolio/overlays/prod
+    image: mongo:7
+    replicas: 1
+    persistence: ephemeral   # emptyDir on /data/db; event log resets on pod restart
+    service:
+      name: codefolio-mongo
+      port: 27017
+      target_port: 27017
+
+  - name: codefolio-dev
     namespace: apps-dev
     kind: Deployment
     managed_by: kustomize
-    source_path: deploy/portfolio-app/overlays/dev
-    image: ani2fun/portfolio-app:960c42375c734445d0cc07a39a471901eca81a15
-    image_digest: sha256:f24479a4e1d44fc3628857a71b430eed95f2c932b5493cdfbc75620369c112f8
+    source_path: deploy/codefolio/overlays/dev
+    image_source: overlay-resolved
     service:
-      name: portfolio-app
+      name: codefolio
       port: 80
-      target_port: 3000
+      target_port: 8080
     ingress:
-      host: dev.kakde.eu
-      tls_secret: dev-kakde-eu-tls
+      host: dev.codefolio.kakde.eu
+      tls_secret: dev-codefolio-kakde-eu-tls
       cluster_issuer: letsencrypt-staging-dns01
 
   - name: piston
@@ -83,13 +82,15 @@ workloads:
       name: piston
       port: 2000
       target_port: 2000
-    # Piston has NO public Ingress of its own. It is reached only through
-    # the notebook-piston-api Ingress on `notebook.kakde.eu/api/v2/...`,
-    # rate-limited by the `notebook-piston-ratelimit` Traefik Middleware.
+    # Piston has NO public Ingress. It is reached only in-cluster via
+    # `piston.apps-prod.svc.cluster.local:2000` — codefolio's server
+    # proxies all `/api/run` calls server-side. The notebook-piston-api
+    # Ingress and notebook-piston-ratelimit Middleware were retired with
+    # note-book.
     api_route:
-      via_ingress: notebook.kakde.eu
-      path_prefix: /api/v2
-      middleware: notebook-piston-ratelimit
+      via_service: piston.apps-prod.svc.cluster.local:2000
+      consumers:
+        - codefolio (server-side proxy in /api/run pipeline)
 
   - name: dsa-tracker-backend
     namespace: apps-prod

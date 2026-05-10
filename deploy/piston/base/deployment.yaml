@@ -92,8 +92,12 @@ spec:
             - name: http
               containerPort: 2000
           env:
+            # Codefolio's server proxies all Piston calls in-cluster — no
+            # browser-origin currently calls Piston directly. The CORS
+            # origin is kept as the apex so a future codefolio frontend
+            # could fetch /api/v2/execute without a 403.
             - name: PISTON_CORS_ORIGIN
-              value: "https://notebook.kakde.eu"
+              value: "https://kakde.eu"
             - name: PISTON_DISABLE_NETWORKING
               value: "true"
             - name: PISTON_MAX_CONCURRENT_JOBS

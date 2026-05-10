@@ -1,9 +1,0 @@
-apiVersion: traefik.io/v1alpha1
-kind: Middleware
-metadata:
-  name: notebook-piston-ratelimit
-spec:
-  rateLimit:
-    average: 5
-    burst: 10
-    period: 1s
