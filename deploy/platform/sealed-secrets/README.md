@@ -219,6 +219,8 @@ Project wrappers in this repo automate the common cases:
 scripts/secrets/rotate-generic-secret.sh apps-prod dsa-tracker-db \
   deploy/apps/dsa-tracker/overlays/prod/sealedsecret.yaml \
   postgres-password=<new-password>
+
+scripts/secrets/rotate-keycloak-github-oauth.sh <github-client-id> <github-client-secret>
 ```
 
 ## Where the encrypted data lives

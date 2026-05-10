@@ -40,7 +40,7 @@ Notes:
 - Home nodes use the HWE kernel (`linux-generic-hwe-24.04`); edge uses
   `linux-virtual` from the Contabo image.
 - wk-2 connects via Wi-Fi (`wlo1` / SSID `Macaw-Tucan`); ms-1 and wk-1
-  are wired Ethernet. See `bootstrap/host-prep/netplan/wk-2.yaml.example`.
+  are wired Ethernet. See `deploy/bootstrap/host-prep/netplan/wk-2.yaml.example`.
 - ctb-edge-1 is the Kubernetes node name; vm-1 is the SSH alias. Same host.
 
 ## Network
@@ -141,10 +141,12 @@ restore; tags can drift.
 |---|---|---|
 | keycloak | `quay.io/keycloak/keycloak:26.5.5` | `sha256:a7b0cb7a43a1235a61872883414d3f1d9a3ceac9df6e5907bd12202778a6265c` |
 | postgresql | `docker.io/library/postgres:17.9` | `sha256:2cd82735a36356842d5eb1ef80db3ae8f1154172f0f653db48fde079b2a0b7f7` |
+| whoami | `docker.io/traefik/whoami:latest` | `sha256:200689790a0a0ea48ca45992e0450bc26ccab5307375b41c84dfc4f2475937ab` |
 
-Keycloak is deployed on the cluster but its manifests are maintained
-out-of-tree (operator notes). `whoami` and `whoami-oauth2-proxy` are not
-currently deployed and not tracked in this repo.
+`whoami-oauth2-proxy` (referenced in older inventory copies) is **not
+currently deployed**. The manifests in `deploy/apps/whoami/` are
+templates; deploy via the steps in that directory's README if/when
+`whoami-auth.kakde.eu` is needed.
 
 ---
 
@@ -196,7 +198,7 @@ Both use the Cloudflare DNS-01 solver. Cloudflare API token is in the
 | WireGuard private keys per node | password manager (4 entries) | (operator records) | manually copy to `/etc/wireguard/wg0.key` |
 | wk-2 Wi-Fi PSK | password manager | (operator records) | netplan template fill-in |
 | Cloudflare API token | Cloudflare dashboard (regenerate as needed) | (operator records) | `kubectl create secret generic cloudflare-api-token` |
-| `ADMIN_SSH_ALLOW_IP` (current home IP) | record in password manager | (operator records) | fill into `/etc/edge-allowlist.env` on `vm-1`, then re-run `deploy/platform/traefik/edge-guardrail.sh` |
+| `ADMIN_SSH_ALLOW_IP` (current home IP) | record in password manager | (operator records) | fill into `deploy/bootstrap/host-prep/firewall/edge-allowlist.env` |
 
 ---
 
@@ -208,5 +210,5 @@ This file is **frozen**. Do not edit it. To capture a newer state:
 scripts/dr/snapshot-live-state.sh > deploy/dr/SNAPSHOT-$(date -u +%Y-%m-%d).md
 ```
 
-Review the new file, then update `deploy/dr/README.md` to point operators
-at the newest snapshot. Keep older snapshots so post-mortems can compare.
+Review the new file, then update `dr/README.md` to point operators at the
+newest snapshot. Keep older snapshots so post-mortems can compare.

@@ -139,8 +139,71 @@ workloads:
       service: postgresql.databases-prod.svc.cluster.local:5432
       namespace_access_label: kakde.eu/postgresql-access=true
 
-  # keycloak runs on the cluster but its manifests are maintained out of
-  # tree (operator notes). Not tracked here.
+  - name: keycloak
+    namespace: identity
+    kind: Deployment
+    managed_by: kubectl-manifests
+    source_path: deploy/apps/keycloak/
+    image: quay.io/keycloak/keycloak:26.5.5
+    image_digest: sha256:a7b0cb7a43a1235a61872883414d3f1d9a3ceac9df6e5907bd12202778a6265c
+    replicas: 1
+    service:
+      name: keycloak
+      port: 80
+      target_port: 8080
+    ingress:
+      host: keycloak.kakde.eu
+      tls_secret: keycloak-tls
+      cluster_issuer: letsencrypt-prod-dns01
+    secrets:
+      - keycloak-admin-secret
+      - keycloak-db-secret
+      - keycloak-github-oauth   # SealedSecret committed at deploy/apps/keycloak/overlays/prod/github-oauth-sealedsecret.yaml
+    database:
+      type: postgres
+      host: postgresql.databases-prod.svc.cluster.local
+      port: 5432
+      name: keycloak
+
+  - name: whoami
+    namespace: apps
+    kind: Deployment
+    managed_by: kubectl-manifests
+    source_path: deploy/apps/whoami/
+    image: traefik/whoami:latest
+    image_digest: sha256:200689790a0a0ea48ca45992e0450bc26ccab5307375b41c84dfc4f2475937ab
+    replicas: 1
+    service:
+      name: whoami
+      port: 80
+      target_port: 80
+    ingress:
+      host: whoami.kakde.eu
+      tls_secret: whoami-kakde-eu-tls
+      cluster_issuer: letsencrypt-prod-dns01
+
+  # whoami-oauth2-proxy is NOT currently deployed. The manifests are kept
+  # in deploy/apps/whoami/ as a deployable template; activate per the
+  # README in that directory if/when whoami-auth.kakde.eu is needed.
+  # - name: whoami-oauth2-proxy
+  #   namespace: apps
+  #   kind: Deployment
+  #   managed_by: kubectl-manifests
+  #   source_path: deploy/apps/whoami/
+  #   image: quay.io/oauth2-proxy/oauth2-proxy:v7.14.3
+  #   replicas: 1
+  #   service:
+  #     name: whoami-oauth2-proxy
+  #     port: 4180
+  #     target_port: 4180
+  #   ingress:
+  #     host: whoami-auth.kakde.eu
+  #   secrets:
+  #     - whoami-oauth2-proxy
+  #   oidc:
+  #     provider: keycloak-oidc
+  #     issuer_url: https://keycloak.kakde.eu/realms/kakde
+  #     redirect_url: https://whoami-auth.kakde.eu/oauth2/callback
 
   - name: argocd
     namespace: argocd

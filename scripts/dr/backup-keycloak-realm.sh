@@ -84,5 +84,5 @@ NEXT STEPS:
   1. Move the file to encrypted off-cluster storage.
   2. Record the sha256 above in your password manager.
   3. To import on a fresh Keycloak, follow:
-     k8s-cluster/dr/keycloak-realm-export.md
+     deploy/dr/keycloak-realm-export.md
 EOF

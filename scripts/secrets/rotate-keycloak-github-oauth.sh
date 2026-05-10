@@ -13,12 +13,12 @@ repo_root="$(cd "$script_dir/../.." && pwd)"
 "$script_dir/rotate-generic-secret.sh" \
   identity \
   keycloak-github-oauth \
-  "$repo_root/k8s-cluster/apps/keycloak/overlays/prod/github-oauth-sealedsecret.yaml" \
+  "$repo_root/deploy/apps/keycloak/overlays/prod/github-oauth-sealedsecret.yaml" \
   "client-id=$1" \
   "client-secret=$2"
 
 if kubectl get namespace identity >/dev/null 2>&1; then
-  kubectl apply -f "$repo_root/k8s-cluster/apps/keycloak/overlays/prod/github-oauth-sealedsecret.yaml" >/dev/null
+  kubectl apply -f "$repo_root/deploy/apps/keycloak/overlays/prod/github-oauth-sealedsecret.yaml" >/dev/null
   "$script_dir/sync-keycloak-github-idp.sh"
   echo "Applied sealed secret and synced live Keycloak broker"
 else

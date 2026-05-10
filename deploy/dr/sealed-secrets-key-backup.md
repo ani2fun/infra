@@ -8,16 +8,16 @@ in Git no longer match.
 
 ## Why this matters
 
-SealedSecrets are committed to Git and depend on the live controller key.
-Currently:
+Three SealedSecrets are currently committed to Git and depend on the live
+controller key:
 
 - `deploy/apps/dsa-tracker/overlays/prod/sealedsecret.yaml`
 - `deploy/apps/dsa-tracker/overlays/dev/sealedsecret.yaml`
-- `deploy/apps/codefolio/overlays/prod/sealedsecret.yaml`
+- `deploy/apps/keycloak/overlays/prod/github-oauth-sealedsecret.yaml`
 
 If the master key is unrecoverable, every plaintext value behind those
-files must be regenerated at source (database password rotation) and
-resealed against the new controller key.
+files must be regenerated at source (database password rotation, GitHub
+OAuth client recreation) and resealed against the new controller key.
 
 ## What to back up
 
@@ -99,11 +99,14 @@ If you have neither the live cluster nor a backup of the master key:
 
 - `cloudflare-api-token` -- regenerate at Cloudflare; apply directly with
   `kubectl create secret`.
+- `keycloak-github-oauth` -- regenerate the GitHub OAuth client secret;
+  reseal via `scripts/secrets/rotate-keycloak-github-oauth.sh`.
 - `dsa-tracker-db` -- choose a new password; update the postgres role and
   reseal with `scripts/secrets/rotate-generic-secret.sh`.
-- `codefolio-db` -- same procedure as `dsa-tracker-db`.
+- `whoami-oauth2-proxy` -- regenerate Keycloak client secret + cookie
+  secret; reseal with `scripts/secrets/seal-whoami-oauth2-proxy.sh`.
 
-See `secret-recovery.md` for the full decision tree.
+See `dr/secret-recovery.md` for the full decision tree.
 
 ## See also
 

@@ -45,7 +45,7 @@ To activate `whoami-auth`:
 5. Apply:
 
    ```bash
-   kubectl apply -k k8s-cluster/apps/whoami/overlays/prod/
+   kubectl apply -k deploy/apps/whoami/overlays/prod/
    ```
 
 6. Verify: `curl -sI https://whoami-auth.kakde.eu` should return `302`
