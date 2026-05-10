@@ -1,6 +1,0 @@
-# /etc/netplan/01-network-manager-all.yaml on ms-1.
-# Home LAN is DHCP. Wired Ethernet (no Wi-Fi).
-# After installing, set permissions: chmod 600 /etc/netplan/01-network-manager-all.yaml
-network:
-  version: 2
-  renderer: NetworkManager
