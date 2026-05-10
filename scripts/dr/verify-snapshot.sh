@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Compare the live cluster's headline versions against k8s-cluster/dr/SNAPSHOT.md.
+# Compare the live cluster's headline versions against deploy/dr/SNAPSHOT.md.
 # Reports drift so you can refresh the snapshot before it goes stale in DR.
 #
 # Read-only. Exits 0 on no drift, 1 on drift.
@@ -8,7 +8,7 @@
 #   scripts/dr/verify-snapshot.sh
 set -euo pipefail
 
-SNAPSHOT="$(dirname "$0")/../../k8s-cluster/dr/SNAPSHOT.md"
+SNAPSHOT="$(dirname "$0")/../../deploy/dr/SNAPSHOT.md"
 if [[ ! -f "$SNAPSHOT" ]]; then
   echo "snapshot not found: $SNAPSHOT" >&2
   exit 2
@@ -85,6 +85,6 @@ if [[ $drift -eq 0 ]]; then
   exit 0
 else
   echo "DRIFT detected. Consider regenerating the snapshot:"
-  echo "  scripts/dr/snapshot-live-state.sh > k8s-cluster/dr/SNAPSHOT-\$(date -u +%Y-%m-%d).md"
+  echo "  scripts/dr/snapshot-live-state.sh > deploy/dr/SNAPSHOT-\$(date -u +%Y-%m-%d).md"
   exit 1
 fi

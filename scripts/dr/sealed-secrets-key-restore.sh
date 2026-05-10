@@ -7,7 +7,7 @@
 #   3. Applies the backup secret(s).
 #   4. Scales the controller back up.
 #   5. Prints the new active cert digest so you can compare against
-#      k8s-cluster/dr/SNAPSHOT.md.
+#      deploy/dr/SNAPSHOT.md.
 #
 # Usage:
 #   scripts/dr/sealed-secrets-key-restore.sh /path/to/sealed-secrets-master-key-*.yaml
@@ -70,7 +70,7 @@ cat <<EOF
 ==> restore complete
 
 Compare the fingerprint above against the value recorded in
-k8s-cluster/dr/SNAPSHOT.md (or your password-manager record).
+deploy/dr/SNAPSHOT.md (or your password-manager record).
 
 If they match, every committed SealedSecret will decrypt cleanly when
 applied. You can now proceed to layer 5 of the runbook (Traefik).

@@ -123,7 +123,7 @@ ssh ms-1 'kubectl get secret -n kube-system -l sealedsecrets.bitnami.com/sealed-
 ```bash
 ssh ms-1 'kubectl -n apps-prod get secret dsa-tracker-db -o jsonpath="{.data.postgres-password}" | head -c 6'
 # expected: 6 characters of base64 (any value); confirms the controller
-# successfully decrypted the committed deploy/dsa-tracker/overlays/prod/sealedsecret.yaml
+# successfully decrypted the committed deploy/apps/dsa-tracker/overlays/prod/sealedsecret.yaml
 ```
 
 ## L5 -- Traefik
@@ -269,8 +269,8 @@ curl -sI https://whoami-auth.kakde.eu | head -1
 If every gate above is green, the cluster is back. Capture a fresh snapshot:
 
 ```bash
-scripts/dr/snapshot-live-state.sh > k8s-cluster/dr/SNAPSHOT-$(date -u +%Y-%m-%d).md
+scripts/dr/snapshot-live-state.sh > deploy/dr/SNAPSHOT-$(date -u +%Y-%m-%d).md
 ```
 
-Compare against `dr/SNAPSHOT.md` for any unexpected drift before declaring
-done.
+Compare against `deploy/dr/SNAPSHOT.md` for any unexpected drift before
+declaring done.

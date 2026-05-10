@@ -8,16 +8,16 @@ in Git no longer match.
 
 ## Why this matters
 
-Three SealedSecrets are currently committed to Git and depend on the live
-controller key:
+SealedSecrets are committed to Git and depend on the live controller key.
+Currently:
 
-- `deploy/dsa-tracker/overlays/prod/sealedsecret.yaml`
-- `deploy/dsa-tracker/overlays/dev/sealedsecret.yaml`
-- `k8s-cluster/apps/keycloak/overlays/prod/github-oauth-sealedsecret.yaml`
+- `deploy/apps/dsa-tracker/overlays/prod/sealedsecret.yaml`
+- `deploy/apps/dsa-tracker/overlays/dev/sealedsecret.yaml`
+- `deploy/apps/codefolio/overlays/prod/sealedsecret.yaml`
 
 If the master key is unrecoverable, every plaintext value behind those
-files must be regenerated at source (database password rotation, GitHub
-OAuth client recreation) and resealed against the new controller key.
+files must be regenerated at source (database password rotation) and
+resealed against the new controller key.
 
 ## What to back up
 
@@ -71,7 +71,7 @@ The script:
 4. Scales the controller back to 1.
 5. Waits for the rollout to finish.
 6. Prints the active cert digest so you can compare against
-   `k8s-cluster/dr/SNAPSHOT.md`.
+   `deploy/dr/SNAPSHOT.md`.
 
 If the printed digest matches the snapshot, every committed `SealedSecret`
 will decrypt cleanly when applied.
@@ -99,14 +99,11 @@ If you have neither the live cluster nor a backup of the master key:
 
 - `cloudflare-api-token` -- regenerate at Cloudflare; apply directly with
   `kubectl create secret`.
-- `keycloak-github-oauth` -- regenerate the GitHub OAuth client secret;
-  reseal via `scripts/secrets/rotate-keycloak-github-oauth.sh`.
 - `dsa-tracker-db` -- choose a new password; update the postgres role and
   reseal with `scripts/secrets/rotate-generic-secret.sh`.
-- `whoami-oauth2-proxy` -- regenerate Keycloak client secret + cookie
-  secret; reseal with `scripts/secrets/seal-whoami-oauth2-proxy.sh`.
+- `codefolio-db` -- same procedure as `dsa-tracker-db`.
 
-See `dr/secret-recovery.md` for the full decision tree.
+See `secret-recovery.md` for the full decision tree.
 
 ## See also
 

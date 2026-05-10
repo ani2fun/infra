@@ -50,6 +50,6 @@ NEXT STEPS:
      every committed SealedSecret in this repo.
 
 To restore on a fresh cluster, see:
-  k8s-cluster/dr/sealed-secrets-key-backup.md
+  deploy/dr/sealed-secrets-key-backup.md
   scripts/dr/sealed-secrets-key-restore.sh
 EOF

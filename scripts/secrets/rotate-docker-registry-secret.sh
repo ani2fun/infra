@@ -3,7 +3,7 @@ set -euo pipefail
 
 usage() {
   echo "Usage: $0 <namespace> <secret-name> <output-yaml> <registry-server> <username> <password> [email]" >&2
-  echo "Example: $0 apps-prod my-regcred deploy/my-app/overlays/prod/registry-sealedsecret.yaml https://index.docker.io/v1/ docker-user docker-token" >&2
+  echo "Example: $0 apps-prod my-regcred deploy/apps/my-app/overlays/prod/registry-sealedsecret.yaml https://index.docker.io/v1/ docker-user docker-token" >&2
 }
 
 if [ "$#" -lt 6 ] || [ "$#" -gt 7 ]; then

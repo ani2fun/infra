@@ -141,12 +141,10 @@ restore; tags can drift.
 |---|---|---|
 | keycloak | `quay.io/keycloak/keycloak:26.5.5` | `sha256:a7b0cb7a43a1235a61872883414d3f1d9a3ceac9df6e5907bd12202778a6265c` |
 | postgresql | `docker.io/library/postgres:17.9` | `sha256:2cd82735a36356842d5eb1ef80db3ae8f1154172f0f653db48fde079b2a0b7f7` |
-| whoami | `docker.io/traefik/whoami:latest` | `sha256:200689790a0a0ea48ca45992e0450bc26ccab5307375b41c84dfc4f2475937ab` |
 
-`whoami-oauth2-proxy` (referenced in older inventory copies) is **not
-currently deployed**. The manifests in `k8s-cluster/apps/whoami/` are
-templates; deploy via the steps in that directory's README if/when
-`whoami-auth.kakde.eu` is needed.
+Keycloak is deployed on the cluster but its manifests are maintained
+out-of-tree (operator notes). `whoami` and `whoami-oauth2-proxy` are not
+currently deployed and not tracked in this repo.
 
 ---
 
@@ -154,9 +152,9 @@ templates; deploy via the steps in that directory's README if/when
 
 | Application | Source path | Tracked branch | Synced commit | Sync policy |
 |---|---|---|---|---|
-| `codefolio` | `deploy/codefolio/overlays/prod` | `main` | `<captured-on-next-snapshot>` | auto, prune, selfHeal |
-| `piston` | `deploy/piston/overlays/prod` | `main` | `b2e353931c637ecc391cf60e3d8be2070bed4f69` | auto, prune, selfHeal |
-| `dsa-tracker` | `deploy/dsa-tracker/overlays/prod` | `main` | `b2e353931c637ecc391cf60e3d8be2070bed4f69` | auto, prune, selfHeal |
+| `codefolio` | `deploy/apps/codefolio/overlays/prod` | `main` | `<captured-on-next-snapshot>` | auto, prune, selfHeal |
+| `piston` | `deploy/apps/piston/overlays/prod` | `main` | `b2e353931c637ecc391cf60e3d8be2070bed4f69` | auto, prune, selfHeal |
+| `dsa-tracker` | `deploy/apps/dsa-tracker/overlays/prod` | `main` | `b2e353931c637ecc391cf60e3d8be2070bed4f69` | auto, prune, selfHeal |
 
 All three Applications point at `https://github.com/ani2fun/infra.git`.
 
@@ -198,7 +196,7 @@ Both use the Cloudflare DNS-01 solver. Cloudflare API token is in the
 | WireGuard private keys per node | password manager (4 entries) | (operator records) | manually copy to `/etc/wireguard/wg0.key` |
 | wk-2 Wi-Fi PSK | password manager | (operator records) | netplan template fill-in |
 | Cloudflare API token | Cloudflare dashboard (regenerate as needed) | (operator records) | `kubectl create secret generic cloudflare-api-token` |
-| `ADMIN_SSH_ALLOW_IP` (current home IP) | record in password manager | (operator records) | fill into `bootstrap/host-prep/firewall/edge-allowlist.env` |
+| `ADMIN_SSH_ALLOW_IP` (current home IP) | record in password manager | (operator records) | fill into `/etc/edge-allowlist.env` on `vm-1`, then re-run `deploy/platform/traefik/edge-guardrail.sh` |
 
 ---
 
@@ -207,8 +205,8 @@ Both use the Cloudflare DNS-01 solver. Cloudflare API token is in the
 This file is **frozen**. Do not edit it. To capture a newer state:
 
 ```bash
-scripts/dr/snapshot-live-state.sh > k8s-cluster/dr/SNAPSHOT-$(date -u +%Y-%m-%d).md
+scripts/dr/snapshot-live-state.sh > deploy/dr/SNAPSHOT-$(date -u +%Y-%m-%d).md
 ```
 
-Review the new file, then update `dr/README.md` to point operators at the
-newest snapshot. Keep older snapshots so post-mortems can compare.
+Review the new file, then update `deploy/dr/README.md` to point operators
+at the newest snapshot. Keep older snapshots so post-mortems can compare.

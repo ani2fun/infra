@@ -8,7 +8,7 @@ spec:
   source:
     repoURL: https://github.com/ani2fun/infra.git
     targetRevision: main
-    path: deploy/dsa-tracker/overlays/prod
+    path: deploy/apps/dsa-tracker/overlays/prod
   destination:
     server: https://kubernetes.default.svc
     namespace: apps-prod

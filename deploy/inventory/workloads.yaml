@@ -1,5 +1,5 @@
 # Workload catalog. The image_digest values are captured at snapshot time
-# (see k8s-cluster/dr/SNAPSHOT.md) and are the source of truth on rebuild.
+# (see deploy/dr/SNAPSHOT.md) and are the source of truth on rebuild.
 # Tags drift; digests don't.
 #
 # Refresh by running: scripts/dr/snapshot-live-state.sh
@@ -8,7 +8,7 @@ workloads:
     namespace: apps-prod
     kind: Deployment
     managed_by: argocd
-    source_path: deploy/codefolio/overlays/prod
+    source_path: deploy/apps/codefolio/overlays/prod
     image: ghcr.io/ani2fun/codefolio:latest
     # image_digest captured at next snapshot run (scripts/dr/snapshot-live-state.sh)
     replicas: 2
@@ -21,7 +21,7 @@ workloads:
       tls_secret: kakde-eu-tls
       cluster_issuer: letsencrypt-prod-dns01
     secrets:
-      - codefolio-db   # SealedSecret committed at deploy/codefolio/overlays/prod/sealedsecret.yaml
+      - codefolio-db   # SealedSecret committed at deploy/apps/codefolio/overlays/prod/sealedsecret.yaml
     backing_stores:
       - postgres: postgresql.databases-prod.svc.cluster.local:5432/codefolio (shared)
       - redis: codefolio-redis.apps-prod (in-namespace, ephemeral cache)
@@ -31,7 +31,7 @@ workloads:
     namespace: apps-prod
     kind: Deployment
     managed_by: argocd
-    source_path: deploy/codefolio/overlays/prod
+    source_path: deploy/apps/codefolio/overlays/prod
     image: redis:7-alpine
     replicas: 1
     persistence: ephemeral   # cache only; no PVC
@@ -44,7 +44,7 @@ workloads:
     namespace: apps-prod
     kind: Deployment
     managed_by: argocd
-    source_path: deploy/codefolio/overlays/prod
+    source_path: deploy/apps/codefolio/overlays/prod
     image: mongo:7
     replicas: 1
     persistence: ephemeral   # emptyDir on /data/db; event log resets on pod restart
@@ -57,7 +57,7 @@ workloads:
     namespace: apps-dev
     kind: Deployment
     managed_by: kustomize
-    source_path: deploy/codefolio/overlays/dev
+    source_path: deploy/apps/codefolio/overlays/dev
     image_source: overlay-resolved
     service:
       name: codefolio
@@ -72,7 +72,7 @@ workloads:
     namespace: apps-prod
     kind: Deployment
     managed_by: argocd
-    source_path: deploy/piston/overlays/prod
+    source_path: deploy/apps/piston/overlays/prod
     # Piston manifest pins by digest; the :latest tag in the manifest is
     # overridden by an `image:` field that includes @sha256.
     image: ghcr.io/engineer-man/piston@sha256:2f66b7456189c4d713aa986d98eccd0b6ee16d26c7ec5f21b30e942756fd127a
@@ -96,7 +96,7 @@ workloads:
     namespace: apps-prod
     kind: Deployment
     managed_by: argocd
-    source_path: deploy/dsa-tracker/overlays/prod
+    source_path: deploy/apps/dsa-tracker/overlays/prod
     image: ghcr.io/ani2fun/dsa-tracker-backend:a62470690a49f10432b0e15814d11823ac1cfdbe
     image_digest: sha256:23092d4edc044ab3d0fe51fbd420292aae6fe8dbe80b0879e6d506f9e820a07b
     replicas: 2
@@ -105,13 +105,13 @@ workloads:
       port: 8080
       target_port: 8080
     secrets:
-      - dsa-tracker-db   # SealedSecret committed at deploy/dsa-tracker/overlays/prod/sealedsecret.yaml
+      - dsa-tracker-db   # SealedSecret committed at deploy/apps/dsa-tracker/overlays/prod/sealedsecret.yaml
 
   - name: dsa-tracker-frontend
     namespace: apps-prod
     kind: Deployment
     managed_by: argocd
-    source_path: deploy/dsa-tracker/overlays/prod
+    source_path: deploy/apps/dsa-tracker/overlays/prod
     image: ghcr.io/ani2fun/dsa-tracker-frontend:1fcdfe9051fdfc4224a8b4bb3b553161e1a4f593
     image_digest: sha256:109b5935d94ea2fa5ee26f4f5cb1142fae3aa80aa7e2628d46f0eef8b64d56ec
     replicas: 2
@@ -128,7 +128,7 @@ workloads:
     namespace: databases-prod
     kind: StatefulSet
     managed_by: kubectl-manifests
-    source_path: k8s-cluster/platform/postgresql/
+    source_path: deploy/platform/postgresql/
     image: postgres:17.9
     image_digest: sha256:2cd82735a36356842d5eb1ef80db3ae8f1154172f0f653db48fde079b2a0b7f7
     replicas: 1
@@ -139,71 +139,8 @@ workloads:
       service: postgresql.databases-prod.svc.cluster.local:5432
       namespace_access_label: kakde.eu/postgresql-access=true
 
-  - name: keycloak
-    namespace: identity
-    kind: Deployment
-    managed_by: kubectl-manifests
-    source_path: k8s-cluster/apps/keycloak/
-    image: quay.io/keycloak/keycloak:26.5.5
-    image_digest: sha256:a7b0cb7a43a1235a61872883414d3f1d9a3ceac9df6e5907bd12202778a6265c
-    replicas: 1
-    service:
-      name: keycloak
-      port: 80
-      target_port: 8080
-    ingress:
-      host: keycloak.kakde.eu
-      tls_secret: keycloak-tls
-      cluster_issuer: letsencrypt-prod-dns01
-    secrets:
-      - keycloak-admin-secret
-      - keycloak-db-secret
-      - keycloak-github-oauth   # SealedSecret committed at k8s-cluster/apps/keycloak/overlays/prod/github-oauth-sealedsecret.yaml
-    database:
-      type: postgres
-      host: postgresql.databases-prod.svc.cluster.local
-      port: 5432
-      name: keycloak
-
-  - name: whoami
-    namespace: apps
-    kind: Deployment
-    managed_by: kubectl-manifests
-    source_path: k8s-cluster/apps/whoami/   # populated in PR 8
-    image: traefik/whoami:latest
-    image_digest: sha256:200689790a0a0ea48ca45992e0450bc26ccab5307375b41c84dfc4f2475937ab
-    replicas: 1
-    service:
-      name: whoami
-      port: 80
-      target_port: 80
-    ingress:
-      host: whoami.kakde.eu
-      tls_secret: whoami-kakde-eu-tls
-      cluster_issuer: letsencrypt-prod-dns01
-
-  # whoami-oauth2-proxy is NOT currently deployed. The manifests are kept
-  # in k8s-cluster/apps/whoami/ as a deployable template; activate per the
-  # README in that directory if/when whoami-auth.kakde.eu is needed.
-  # - name: whoami-oauth2-proxy
-  #   namespace: apps
-  #   kind: Deployment
-  #   managed_by: kubectl-manifests
-  #   source_path: k8s-cluster/apps/whoami/
-  #   image: quay.io/oauth2-proxy/oauth2-proxy:v7.14.3
-  #   replicas: 1
-  #   service:
-  #     name: whoami-oauth2-proxy
-  #     port: 4180
-  #     target_port: 4180
-  #   ingress:
-  #     host: whoami-auth.kakde.eu
-  #   secrets:
-  #     - whoami-oauth2-proxy
-  #   oidc:
-  #     provider: keycloak-oidc
-  #     issuer_url: https://keycloak.kakde.eu/realms/kakde
-  #     redirect_url: https://whoami-auth.kakde.eu/oauth2/callback
+  # keycloak runs on the cluster but its manifests are maintained out of
+  # tree (operator notes). Not tracked here.
 
   - name: argocd
     namespace: argocd

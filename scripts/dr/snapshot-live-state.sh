@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Emit a markdown fragment with the live cluster state, suitable for pasting
-# into k8s-cluster/dr/SNAPSHOT-YYYY-MM-DD.md.
+# into deploy/dr/SNAPSHOT-YYYY-MM-DD.md.
 #
 # Captures: per-node OS/kernel/sysctl/swap/modules/firewall facts, K3s and
 # Calico versions, Helm chart versions for cert-manager, image+digest pairs

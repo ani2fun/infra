@@ -9,7 +9,7 @@
 --     'export PGPASSWORD="$POSTGRES_PASSWORD"; psql -U postgres -d postgres'
 --
 -- Then paste the SQL below, substituting <chosen-password> with the value
--- you sealed into infra/deploy/codefolio/overlays/prod/sealedsecret.yaml
+-- you sealed into infra/deploy/apps/codefolio/overlays/prod/sealedsecret.yaml
 -- (key: postgres-password).
 --
 -- Liquibase (run by codefolio on startup) creates the schema; this file
@@ -41,8 +41,8 @@ GRANT ALL PRIVILEGES ON DATABASE codefolio TO codefolio;
 --     | kubeseal --controller-namespace=sealed-secrets \
 --         --controller-name=sealed-secrets-controller \
 --         --format yaml \
---         > deploy/codefolio/overlays/prod/sealedsecret.yaml
+--         > deploy/apps/codefolio/overlays/prod/sealedsecret.yaml
 --
 -- Edit the resulting file so .metadata.namespace and .spec.template.metadata.namespace
 -- are both `apps-prod` (kubeseal omits namespace by default). Mirror the shape of
--- deploy/dsa-tracker/overlays/prod/sealedsecret.yaml.
+-- deploy/apps/dsa-tracker/overlays/prod/sealedsecret.yaml.

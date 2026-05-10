@@ -128,7 +128,7 @@ The controller creates `Secret/my-secret` from `SealedSecret/my-secret`.
 
 For `dsa-tracker`, the encrypted manifests live here:
 
-- `deploy/dsa-tracker/overlays/prod/sealedsecret.yaml`
+- `deploy/apps/dsa-tracker/overlays/prod/sealedsecret.yaml`
 
 It produces this runtime secret in `apps-prod`:
 
@@ -136,7 +136,7 @@ It produces this runtime secret in `apps-prod`:
 
 And the app references them from:
 
-- `deploy/dsa-tracker/base/backend-deployment.yaml`
+- `deploy/apps/dsa-tracker/base/backend-deployment.yaml`
 
 Examples:
 
@@ -156,7 +156,7 @@ kubectl create secret generic my-app-db \
 kubeseal \
   --cert /tmp/sealed-secrets-cert.pem \
   --format yaml \
-  > deploy/my-app/overlays/prod/sealedsecret.yaml
+  > deploy/apps/my-app/overlays/prod/sealedsecret.yaml
 ```
 
 Then add that file to the relevant `kustomization.yaml`.
@@ -176,7 +176,7 @@ kubectl create secret docker-registry my-regcred \
 kubeseal \
   --cert /tmp/sealed-secrets-cert.pem \
   --format yaml \
-  > deploy/my-app/overlays/prod/registry-sealedsecret.yaml
+  > deploy/apps/my-app/overlays/prod/registry-sealedsecret.yaml
 ```
 
 Then reference it from the pod spec:
@@ -210,13 +210,15 @@ kubectl create secret generic dsa-tracker-db \
 kubeseal \
   --cert /tmp/sealed-secrets-cert.pem \
   --format yaml \
-  > deploy/dsa-tracker/overlays/prod/sealedsecret.yaml
+  > deploy/apps/dsa-tracker/overlays/prod/sealedsecret.yaml
 ```
 
 Project wrappers in this repo automate the common cases:
 
 ```bash
-scripts/secrets/rotate-keycloak-github-oauth.sh <client-id> <client-secret>
+scripts/secrets/rotate-generic-secret.sh apps-prod dsa-tracker-db \
+  deploy/apps/dsa-tracker/overlays/prod/sealedsecret.yaml \
+  postgres-password=<new-password>
 ```
 
 ## Where the encrypted data lives

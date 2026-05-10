@@ -9,11 +9,8 @@ day, how to apply it, and what breaks if it's lost.
 |---|---|---|---|---|
 | `cloudflare-api-token` | `cert-manager` | Regenerate at Cloudflare | `kubectl create secret` | TLS cert renewal stops; existing certs keep working until expiry (~60 days) |
 | `postgresql-auth` | `databases-prod` | Password manager | `kubectl create secret` | Postgres won't start with the configured roles; recoverable by setting matching values |
-| `keycloak-admin-secret` | `identity` | Password manager | `kubectl create secret` | Lose admin console access; recreate via `KC_BOOTSTRAP_ADMIN_*` env on a fresh Keycloak |
-| `keycloak-db-secret` | `identity` | Password manager (must match `pg_authid`) | `kubectl create secret` | Keycloak can't connect to its DB; rotate role + secret together |
-| `keycloak-github-oauth` | `identity` | Sealed-secrets restore (preferred) or rotate at github.com | sealed-secrets controller, or `scripts/secrets/rotate-keycloak-github-oauth.sh` | GitHub login broker fails; users can still use direct Keycloak accounts |
 | `dsa-tracker-db` | `apps-prod` | Sealed-secrets restore (preferred) or postgres password rotation | sealed-secrets controller, or `scripts/secrets/rotate-generic-secret.sh` | dsa-tracker backend can't reach postgres |
-| `whoami-oauth2-proxy` | `apps` (when deployed) | Generate fresh values | `scripts/secrets/seal-whoami-oauth2-proxy.sh` | whoami-auth.kakde.eu fails; whoami.kakde.eu unaffected |
+| `codefolio-db` | `apps-prod` | Sealed-secrets restore (preferred) or postgres password rotation | sealed-secrets controller, or `scripts/secrets/rotate-generic-secret.sh` | codefolio backend can't reach mongo/redis |
 | TLS cert Secrets (`*-tls`) | various | cert-manager re-issues automatically | cert-manager | Brief unavailability while DNS-01 challenge completes |
 | WireGuard private keys | each node `/etc/wireguard/wg0.key` | Password manager (4 entries) or generate fresh | `scp` + `wg-quick down/up wg0` | Mesh fails; cluster API unreachable; rebuild from L2 |
 | wk-2 Wi-Fi PSK | wk-2 `/etc/netplan/*.yaml` | Password manager | netplan template fill-in | wk-2 can't reach the LAN; switch to wired Ethernet to recover |
@@ -66,7 +63,7 @@ backup) or postgres will refuse to authenticate.
   `postgres-superuser-password`, `app-db-name`, `app-db-user`,
   `app-db-password`.
 
-**Apply.** Edit `k8s-cluster/platform/postgresql/2-secret.yaml` to
+**Apply.** Edit `deploy/platform/postgresql/2-secret.yaml` to
 substitute the placeholder values, or apply directly:
 
 ```bash
@@ -84,89 +81,11 @@ match (`ALTER ROLE appuser WITH PASSWORD '...';`).
 
 ---
 
-### `keycloak-admin-secret` (identity)
-
-**Why it's needed.** Bootstrap admin user (read on Keycloak's first
-start). Once Keycloak is running you log in to the admin console with
-this credential and can manage users/clients from there.
-
-**Source on rebuild.** Password manager.
-
-**Apply.**
-
-```bash
-kubectl -n identity create secret generic keycloak-admin-secret \
-  --from-literal=username='<<ADMIN_USER>>' \
-  --from-literal=password='<<ADMIN_PASS>>'
-```
-
-**If lost.** Pick fresh values, apply, restart Keycloak. The new admin
-will have access; no realm data is lost.
-
----
-
-### `keycloak-db-secret` (identity)
-
-**Why it's needed.** Keycloak connects to PostgreSQL with these
-credentials. They must match a real role+password in `pg_authid` (so
-postgres accepts the login) AND in the `keycloak` database's owner
-permissions.
-
-**Source on rebuild.**
-
-- If you've restored a postgres dump, the role+password in the dump is
-  the source of truth -- pull the matching plaintext from the password
-  manager.
-- If you're starting from a fresh empty postgres, choose values, then
-  create the role + database to match:
-
-  ```bash
-  kubectl -n databases-prod exec -it postgresql-0 -- psql -U postgres -c \
-    "CREATE ROLE keycloak WITH LOGIN PASSWORD '<<PASS>>'; \
-     CREATE DATABASE keycloak OWNER keycloak;"
-  ```
-
-**Apply.**
-
-```bash
-kubectl -n identity create secret generic keycloak-db-secret \
-  --from-literal=username='keycloak' \
-  --from-literal=password='<<PASS>>'
-```
-
----
-
-### `keycloak-github-oauth` (identity)
-
-**Why it's needed.** GitHub identity-broker client ID and secret.
-Committed to Git as a SealedSecret at
-`k8s-cluster/apps/keycloak/overlays/prod/github-oauth-sealedsecret.yaml`.
-
-**Source on rebuild.**
-
-- **If sealed-secrets master key was restored:** restored automatically
-  by the controller when you `kubectl apply` the SealedSecret. Nothing
-  more to do.
-- **If the master key is unrecoverable:**
-  1. Go to github.com → Settings → Developer settings → OAuth Apps.
-  2. Find the "Keycloak `kakde` realm" app.
-  3. Generate a new client secret. Copy it.
-  4. Reseal:
-
-     ```bash
-     scripts/secrets/rotate-keycloak-github-oauth.sh \
-       <<github-client-id>> <<new-client-secret>>
-     ```
-
-  5. Argo CD or `kubectl apply` will pick up the new SealedSecret.
-
----
-
 ### `dsa-tracker-db` (apps-prod)
 
 **Why it's needed.** Postgres role password used by the dsa-tracker
 backend. SealedSecret committed at
-`deploy/dsa-tracker/overlays/prod/sealedsecret.yaml`.
+`deploy/apps/dsa-tracker/overlays/prod/sealedsecret.yaml`.
 
 **Source on rebuild.**
 
@@ -181,37 +100,20 @@ backend. SealedSecret committed at
      ```bash
      scripts/secrets/rotate-generic-secret.sh \
        apps-prod dsa-tracker-db \
-       deploy/dsa-tracker/overlays/prod/sealedsecret.yaml \
+       deploy/apps/dsa-tracker/overlays/prod/sealedsecret.yaml \
        postgres-password='<<NEW>>'
      ```
 
 ---
 
-### `whoami-oauth2-proxy` (apps)
+### `codefolio-db` (apps-prod)
 
-**Why it's needed.** Three keys: Keycloak client id/secret + a
-`cookie-secret` for oauth2-proxy session cookies. Only needed when the
-`whoami-auth.kakde.eu` flow is activated.
+**Why it's needed.** Database password used by the codefolio backend.
+SealedSecret committed at
+`deploy/apps/codefolio/overlays/prod/sealedsecret.yaml`.
 
-**Note:** as of the snapshot, whoami-auth is **not deployed**. The
-manifests in `apps/whoami/` are deployable templates; activate via the
-README in that directory.
-
-**Source on rebuild.**
-
-- Keycloak client id: chosen at client creation in the `kakde` realm.
-- Keycloak client secret: from the client's "Credentials" tab.
-- `cookie-secret`: generate fresh (`head -c 32 /dev/urandom | base64`).
-
-**Apply via the helper:**
-
-```bash
-scripts/secrets/seal-whoami-oauth2-proxy.sh \
-  <<keycloak-client-id>> <<keycloak-client-secret>>
-```
-
-The helper generates the cookie-secret automatically and writes the
-SealedSecret next to the manifests.
+**Source on rebuild.** Same procedure as `dsa-tracker-db` above; sub the
+codefolio file path and credential keys.
 
 ---
 
@@ -256,28 +158,26 @@ peer configs to use the new public keys:
 ```bash
 ssh ms-1 'umask 077; wg genkey | tee /etc/wireguard/wg0.key | wg pubkey'
 # repeat on each node, capture the public key for each
-# update bootstrap/wireguard/*.conf.example PublicKey fields
-# scp the example to each node, edit in the right private key reference
+# update each node's /etc/wireguard/wg0.conf PublicKey fields
 # wg-quick down wg0 && wg-quick up wg0
 ```
 
-This is more work but always works.
+This is more work but always works. Bootstrap-time WireGuard configs are
+maintained out of band (operator notes, not in this repo).
 
 ---
 
 ### wk-2 Wi-Fi PSK
 
 **Why it's tracked here.** Currently wk-2 connects to `Macaw-Tucan` Wi-Fi
-with the PSK in plaintext inside `/etc/netplan/50-cloud-init.yaml`. The
-template at `bootstrap/host-prep/netplan/wk-2.yaml.example` ships with a
-placeholder.
+with the PSK in plaintext inside `/etc/netplan/50-cloud-init.yaml`.
 
 **Recommended.** Move wk-2 to wired Ethernet on rebuild. Wi-Fi is fragile
 under K8s load and the PSK in netplan is awkward to manage.
 
-**If staying on Wi-Fi.** Pull the PSK from the password manager. Replace
-the `<<REPLACE_WITH_WIFI_PSK>>` placeholder in the netplan file. Set
-`chmod 600` on the netplan file before `netplan apply`.
+**If staying on Wi-Fi.** Pull the PSK from the password manager. Edit
+the netplan file in place. Set `chmod 600` on the netplan file before
+`netplan apply`.
 
 ---
 
@@ -305,9 +205,8 @@ The biggest single point of failure. Detailed procedure:
 
 Not a secret per se, just operator-specific. The `edge_guardrail`
 nftables allowlist permits SSH from a single IP. On rebuild, look up your
-home IP at `https://ifconfig.me` and put it in
-`bootstrap/host-prep/firewall/edge-allowlist.env`. Then re-apply
-`platform/traefik/edge-guardrail.sh`.
+home IP at `https://ifconfig.me` and put it in `/etc/edge-allowlist.env`
+on `vm-1`. Then re-apply `deploy/platform/traefik/edge-guardrail.sh`.
 
 If your ISP rotates the IP between rebuild and your next remote login,
 SSH will be blocked. Recover via the Contabo web console.
