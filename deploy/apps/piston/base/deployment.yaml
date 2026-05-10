@@ -63,28 +63,44 @@ spec:
                 if (body) req.write(body);
                 req.end();
               });
+              const required = [
+                { language: 'rust',       version: '*' },
+                { language: 'python',     version: '*' },
+                { language: 'node',       version: '*' },
+                { language: 'typescript', version: '*' },
+                { language: 'sqlite3',    version: '*' }
+              ];
               (async () => {
                 for (let i = 0; i < 60; i += 1) {
                   try {
-                    const packages = await request('GET', '/api/v2/packages');
-                    if (packages.status === 200) {
-                      const list = JSON.parse(packages.data);
-                      const rustInstalled = list.some((pkg) => pkg.language === 'rust' && pkg.installed);
-                      if (!rustInstalled) {
-                        const install = await request('POST', '/api/v2/packages', JSON.stringify({ language: 'rust', version: '*' }));
-                        if (install.status < 200 || install.status >= 300) {
-                          throw new Error('Rust install failed: ' + install.status + ' ' + install.data);
-                        }
-                      }
-                      return;
-                    }
+                    const r = await request('GET', '/api/v2/packages');
+                    if (r.status === 200) break;
                   } catch (_) {}
                   await new Promise((resolve) => setTimeout(resolve, 1000));
+                  if (i === 59) throw new Error('Timed out waiting for the Piston API to become ready');
                 }
-                throw new Error('Timed out waiting for the Piston API to become ready');
+                const listRes = await request('GET', '/api/v2/packages');
+                const list = JSON.parse(listRes.data);
+                for (const pkg of required) {
+                  const already = list.some((p) => p.language === pkg.language && p.installed);
+                  if (already) {
+                    console.log('[piston-init] ' + pkg.language + ': already installed');
+                    continue;
+                  }
+                  console.log('[piston-init] ' + pkg.language + ': installing...');
+                  try {
+                    const install = await request('POST', '/api/v2/packages', JSON.stringify(pkg));
+                    if (install.status >= 200 && install.status < 300) {
+                      console.log('[piston-init] ' + pkg.language + ': ok');
+                    } else {
+                      console.error('[piston-init] ' + pkg.language + ': install failed (' + install.status + '): ' + install.data);
+                    }
+                  } catch (e) {
+                    console.error('[piston-init] ' + pkg.language + ': install threw: ' + (e.message || e));
+                  }
+                }
               })().catch((error) => {
-                console.error(error.message || error);
-                process.exit(1);
+                console.error('[piston-init] fatal: ' + (error.message || error));
               });
               " &&
               wait "$api_pid"
