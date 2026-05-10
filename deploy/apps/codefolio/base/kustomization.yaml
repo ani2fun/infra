@@ -6,3 +6,4 @@ resources:
   - service.yaml
   - redis.yaml
   - mongo.yaml
+  - networkpolicy-piston.yaml

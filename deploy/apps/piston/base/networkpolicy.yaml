@@ -10,9 +10,8 @@ spec:
   policyTypes:
     - Ingress
   ingress:
-    # Public route: traefik → piston (only used historically by note-book's
-    # browser-side `/api/v2/execute` Ingress; no longer required after the
-    # codefolio cutover but kept in case future apps re-publish the route).
+    # Public route: traefik → piston (kept for any future direct browser
+    # access; the codefolio frontend doesn't use it today).
     - from:
         - namespaceSelector:
             matchLabels:
@@ -22,12 +21,8 @@ spec:
       ports:
         - protocol: TCP
           port: 2000
-    # In-cluster server-side proxy: codefolio /api/run → piston:2000.
-    - from:
-        - podSelector:
-            matchLabels:
-              app.kubernetes.io/name: codefolio
-              app.kubernetes.io/component: app
-      ports:
-        - protocol: TCP
-          port: 2000
+    # NOTE: the in-cluster ingress rule from codefolio lives in
+    # `deploy/apps/codefolio/base/networkpolicy-piston.yaml`, NOT here.
+    # This kustomization applies `app.kubernetes.io/name: piston` to all
+    # selectors (`includeSelectors: true`), which would silently rewrite
+    # any cross-app podSelector we tried to inline below.
