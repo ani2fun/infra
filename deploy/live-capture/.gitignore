@@ -1,0 +1,10 @@
+# Output dumps from collect-live-state.sh.
+#
+# These contain raw cluster state including ConfigMaps, Argo CD Application
+# specs, ingress rules, network policies, and per-host facts. They MUST
+# stay out of git -- ConfigMap content in particular can carry plaintext
+# config that the rest of this repo treats as sensitive.
+#
+# Secret values themselves are not exported (the script captures secret
+# NAME + TYPE only), but the dump is still operator-only material.
+output/

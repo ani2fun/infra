@@ -12,6 +12,7 @@ live sync and for an operator-driven rebuild from cold metal.
 | `platform/` | Manifests and install scripts for cluster platform services (traefik, cert-manager, sealed-secrets, argocd, postgresql). Used during rebuild; the `applications/` subfolder under `platform/argocd/` defines the Argo CD `Application` resources themselves. | **No** -- these are reference / one-shot bootstrap material. Do NOT add them to a kustomize root or another Argo Application. |
 | `dr/` | Disaster-recovery pack: `RUNBOOK.md`, `SNAPSHOT.md`, `gates.md`, `secret-recovery.md`, sealed-secrets backup procedure, keycloak realm export procedure. | No |
 | `inventory/` | Reference data: `network.yaml`, `nodes.yaml`, `namespaces.yaml`, `workloads.yaml`. | No |
+| `live-capture/` | `collect-live-state.sh` audit tool: SSHes to all 4 nodes and dumps cluster + host state to `output/` (gitignored). Used for drift detection and post-rebuild verification. Secret values are NOT exported -- see the README in that folder for details. | No |
 
 ## How a release reaches the cluster
 

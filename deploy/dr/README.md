@@ -98,3 +98,8 @@ scripts/dr/verify-snapshot.sh
 ```
 
 Run this before any rebuild attempt to catch silent version drift.
+
+For a deeper one-off audit (host-level facts, firewall rules, full
+cluster state per namespace) use
+[`../live-capture/collect-live-state.sh`](../live-capture/collect-live-state.sh).
+Its output is large and gitignored; treat it as operator-only material.
