@@ -1,0 +1,18 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: likec4
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/ani2fun/infra.git
+    targetRevision: main
+    path: deploy/apps/likec4/overlays/prod
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: apps-prod
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

@@ -1,0 +1,9 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - deployment.yaml
+  - service.yaml
+# NetworkPolicy lives in deploy/apps/codefolio/base/networkpolicy-likec4.yaml
+# (consumer-owned grant). LikeC4 has only one in-cluster consumer, so we
+# don't ship a likec4-side NP that would just duplicate the same allow rule.

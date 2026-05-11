@@ -7,3 +7,4 @@ resources:
   - redis.yaml
   - mongo.yaml
   - networkpolicy-piston.yaml
+  - networkpolicy-likec4.yaml

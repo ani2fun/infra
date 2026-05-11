@@ -1,0 +1,21 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  # Owned by codefolio, targets likec4 pods. Stacks with the (currently only)
+  # ingress rule on likec4 — sibling of networkpolicy-piston.yaml.
+  name: likec4-allow-ingress-from-codefolio
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: likec4
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: codefolio
+              app.kubernetes.io/component: app
+      ports:
+        - protocol: TCP
+          port: 8080
