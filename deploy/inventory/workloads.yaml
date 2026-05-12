@@ -92,30 +92,6 @@ workloads:
       consumers:
         - codefolio (server-side proxy in /api/run pipeline)
 
-  - name: likec4
-    namespace: apps-prod
-    kind: Deployment
-    managed_by: argocd
-    source_path: deploy/apps/likec4/overlays/prod
-    # Image built by codefolio's CI from the c4/ DSL sources; tag bumped via
-    # commit-back per the same workflow that drives codefolio itself.
-    image: ghcr.io/ani2fun/likec4:latest
-    # image_digest captured at next snapshot run (scripts/dr/snapshot-live-state.sh)
-    replicas: 1
-    service:
-      name: likec4
-      port: 80
-      target_port: 8080
-    # LikeC4 has NO public Ingress. It is reached only in-cluster via
-    # `likec4.apps-prod.svc.cluster.local` — codefolio's server reverse-
-    # proxies `/c4/*` for embedding inside the system-design chapter. The
-    # consumer-owned NetworkPolicy lives at
-    # deploy/apps/codefolio/base/networkpolicy-likec4.yaml.
-    api_route:
-      via_service: likec4.apps-prod.svc.cluster.local
-      consumers:
-        - codefolio (server-side /c4/* proxy in LikeC4ProxyRoutes)
-
   - name: dsa-tracker-backend
     namespace: apps-prod
     kind: Deployment
