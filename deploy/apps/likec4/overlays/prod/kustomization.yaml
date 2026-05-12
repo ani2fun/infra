@@ -1,11 +1,9 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: apps-prod
-
 resources:
-  - ../../base
-
+- ../../base
 images:
-  - name: ghcr.io/ani2fun/likec4
-    newName: ghcr.io/ani2fun/likec4
-    newTag: fc4c3c12ebeeb718b71966ea20a5ab6108e7fe3f
+- name: ghcr.io/ani2fun/likec4
+  newName: ghcr.io/ani2fun/likec4
+  newTag: fc4c3c12ebeeb718b71966ea20a5ab6108e7fe3f
