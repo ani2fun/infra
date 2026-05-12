@@ -6,4 +6,4 @@ resources:
 images:
 - name: ghcr.io/ani2fun/likec4
   newName: ghcr.io/ani2fun/likec4
-  newTag: 6e485e2776adca0fb90ca9fc2c1f50c992269339
+  newTag: bdc87ab557cdda145d81375396b7d619f01548fd
