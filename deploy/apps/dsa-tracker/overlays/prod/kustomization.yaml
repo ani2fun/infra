@@ -6,11 +6,11 @@ resources:
 - ingress.yaml
 - sealedsecret.yaml
 patches:
-- patch: "- op: replace\n  path: /spec/replicas\n  value: 2"
+- patch: "- op: replace\n  path: /spec/replicas\n  value: 1"
   target:
     kind: Deployment
     name: dsa-tracker-backend
-- patch: "- op: replace\n  path: /spec/replicas\n  value: 2"
+- patch: "- op: replace\n  path: /spec/replicas\n  value: 1"
   target:
     kind: Deployment
     name: dsa-tracker-frontend
