@@ -40,6 +40,13 @@ spec:
               value: mongodb://codefolio-mongo:27017
             - name: MONGO_DB
               value: codefolio
+            # Prefer the self-hosted Code Runner over Piston (PISTON_URL is set in
+            # the overlays). Code Runner is required for JVM Visualise tracing
+            # (jdk.compiler) and has a 1 MB stdout cap vs Piston's 64 KB. NOTE:
+            # once set, Code Runner is the primary backend for ALL languages —
+            # there is no runtime failover; Piston is only used if this is unset.
+            - name: CODE_RUNNER_URL
+              value: http://codefolio-code-runner:2358
             - name: CORTEX_AUTO_RELOAD
               value: "false"
           startupProbe:

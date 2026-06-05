@@ -1,0 +1,30 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  # Isolation for the code-runner, which executes UNTRUSTED user code. Two rules:
+  #   1. Ingress only from the codefolio app on :2358 (no one else may submit code).
+  #   2. NO egress at all — the runner compiles + runs everything locally with
+  #      baked-in toolchains, so it never needs the network. Denying egress is the
+  #      core control: submitted code can't reach the internet or any cluster
+  #      service (no exfiltration, SSRF, or lateral movement).
+  # NetworkPolicies are additive within a namespace, so this stacks cleanly.
+  name: code-runner-isolation
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: codefolio
+      app.kubernetes.io/component: code-runner
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: codefolio
+              app.kubernetes.io/component: app
+      ports:
+        - protocol: TCP
+          port: 2358
+  # Empty egress block + Egress in policyTypes = deny ALL egress.
+  egress: []
