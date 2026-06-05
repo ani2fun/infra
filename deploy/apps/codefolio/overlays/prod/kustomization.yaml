@@ -13,4 +13,4 @@ patches:
 images:
 - name: ghcr.io/ani2fun/codefolio
   newName: ghcr.io/ani2fun/codefolio
-  newTag: d3e0bef77119de0cccd9dabe948880c95a8614fb
+  newTag: 2f28f0e078e87f0fca07335b8704e0c6d82ed89f
