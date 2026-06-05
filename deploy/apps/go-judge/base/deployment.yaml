@@ -1,0 +1,86 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: go-judge
+  labels:
+    app.kubernetes.io/name: go-judge
+    app.kubernetes.io/component: executor
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: go-judge
+      app.kubernetes.io/component: executor
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: go-judge
+        app.kubernetes.io/component: executor
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: go-judge
+          # Published by the codefolio CI workflow (runner/go-judge/Dockerfile):
+          # go-judge + JDK 21 + the Languages.scala toolchains.
+          image: ghcr.io/ani2fun/codefolio-go-judge:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 5050
+          env:
+            - name: ES_HTTP_ADDR
+              value: ":5050"
+            # Concurrent sandboxes. Modest for a 2-CPU pod; scale with cpu/replicas.
+            - name: ES_PARALLELISM
+              value: "2"
+            # ES_NET_SHARE is left unset (default false): each sandbox gets an
+            # isolated, network-LESS namespace — this is what stops executed code
+            # phoning home, replacing the old runner's deny-all egress policy for
+            # the *code*. (The pod's own egress is additionally denied below.)
+            #
+            # TODO(hardening): ES_SECCOMP_CONF=<profile> to seccomp-filter user
+            #   code (go-judge ships seccomp off; needs a profile file mounted).
+            # TODO(hardening): ES_AUTH_TOKEN from a SealedSecret for bearer auth,
+            #   on top of the NetworkPolicy (GoJudgeWire would send the token).
+          # exec probes (not httpGet): they run INSIDE the container, so they are
+          # immune to the ingress NetworkPolicy / kubelet-source question.
+          readinessProbe:
+            exec:
+              command: ["/bin/sh", "-c", "curl -fsS http://127.0.0.1:5050/version >/dev/null"]
+            initialDelaySeconds: 3
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            exec:
+              command: ["/bin/sh", "-c", "curl -fsS http://127.0.0.1:5050/version >/dev/null"]
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+          volumeMounts:
+            - name: dshm
+              mountPath: /dev/shm
+          # go-judge sandboxes user code with Linux namespaces + cgroups, which
+          # requires privileged (clone/unshare/mount + cgroup creation). It is
+          # cgroup-v2-NATIVE, so NO node cgroup-v1 flip and NO nodeSelector are
+          # needed — it runs on the standard v2 nodes.
+          # No pod-level seccompProfile: RuntimeDefault would block the syscalls
+          # go-judge needs to build sandboxes (same as the piston pod).
+          securityContext:
+            privileged: true
+      volumes:
+        # Match upstream `docker run --shm-size=256m`.
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 256Mi
