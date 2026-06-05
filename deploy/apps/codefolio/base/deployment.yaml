@@ -40,14 +40,8 @@ spec:
               value: mongodb://codefolio-mongo:27017
             - name: MONGO_DB
               value: codefolio
-            # TRANSITIONAL (ADR-0029 go-judge cutover). The go-judge app build
-            # reads ONLY EXECUTOR_URL; the old app reads CODE_RUNNER_URL/PISTON_URL
-            # and ignores EXECUTOR_URL. Both are set during the rolling cutover so
-            # either app version works with zero downtime. CODE_RUNNER_URL (here)
-            # and PISTON_URL (overlays) are removed — with the Code Runner + Piston
-            # deploys — once go-judge is verified in prod.
-            - name: CODE_RUNNER_URL
-              value: http://codefolio-code-runner:2358
+            # go-judge sandbox — the single code-execution backend for /api/run
+            # and the Cortex Visualise tracer (ADR-0029).
             - name: EXECUTOR_URL
               value: http://go-judge:5050
             - name: CORTEX_AUTO_RELOAD

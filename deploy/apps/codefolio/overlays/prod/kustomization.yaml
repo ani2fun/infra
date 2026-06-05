@@ -10,11 +10,6 @@ patches:
   target:
     kind: Deployment
     name: codefolio
-- patch: "- op: add\n  path: /spec/template/spec/containers/0/env/-\n  value:\n  \
-    \  name: PISTON_URL\n    value: \"http://piston:2000\""
-  target:
-    kind: Deployment
-    name: codefolio
 images:
 - name: ghcr.io/ani2fun/codefolio
   newName: ghcr.io/ani2fun/codefolio
