@@ -1,0 +1,85 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: codefolio-code-runner
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: codefolio
+      app.kubernetes.io/component: code-runner
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: codefolio
+        app.kubernetes.io/component: code-runner
+    spec:
+      terminationGracePeriodSeconds: 15
+      # The runner COMPILES + RUNS untrusted user code (the Visualise "Run"/trace
+      # backend). The pod is the sandbox:
+      #   - egress is denied entirely (networkpolicy-code-runner.yaml) so submitted
+      #     code can't phone home, exfiltrate, or pivot to cluster services;
+      #   - ingress is allowed only from the codefolio app;
+      #   - resources are bounded, privilege escalation is off, all caps dropped.
+      # It runs as ROOT because the baked-in toolchains assume a root $HOME
+      # (rustup under /root/.cargo, scala-cli/coursier caches under /root/.cache);
+      # moving to non-root needs a Dockerfile change in the codefolio repo.
+      automountServiceAccountToken: false
+      containers:
+        - name: code-runner
+          image: ghcr.io/ani2fun/codefolio-runner:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 2358
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 2358
+            initialDelaySeconds: 3
+            periodSeconds: 10
+            timeoutSeconds: 2
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 2358
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+              ephemeral-storage: 256Mi
+            limits:
+              # Generous — rustc / kotlinc / scala-cli compiles are heavy. The
+              # per-request timeouts in server.js (10–90 s) bound wall-clock;
+              # these bound concurrent CPU/RAM and scratch/cache disk.
+              cpu: "2"
+              memory: 2Gi
+              ephemeral-storage: 2Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: codefolio-code-runner
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: codefolio
+    app.kubernetes.io/component: code-runner
+  ports:
+    - name: http
+      port: 2358
+      targetPort: 2358
+      protocol: TCP
