@@ -1,0 +1,34 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: apps-prod
+resources:
+- ../../base
+- ingress.yaml
+- sealedsecret.yaml
+patches:
+- patch: "- op: replace\n  path: /spec/replicas\n  value: 2"
+  target:
+    kind: Deployment
+    name: cortex
+# First deploy runs auth OFF so cortex.kakde.eu serves the book read-only without a Keycloak
+# `cortex-web` client yet. Delete this patch (prod then inherits base AUTH_ENABLED=true) once the
+# client exists in the apps-prod realm — see keycloak-client.md.
+- patch: |-
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: cortex
+    spec:
+      template:
+        spec:
+          containers:
+            - name: cortex
+              env:
+                - name: AUTH_ENABLED
+                  value: "false"
+images:
+- name: ghcr.io/ani2fun/cortex
+  newName: ghcr.io/ani2fun/cortex
+  # First build from the cortex repo (commit 46238e9). Future pushes auto-promote this via
+  # the build-push-promote workflow (now that this path exists on main).
+  newTag: 46238e9e722bf1066b9e95123aba3b94a47a4f3e

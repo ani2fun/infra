@@ -1,0 +1,30 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: apps-dev
+
+resources:
+  - ../../base
+  - ingress.yaml
+
+# Dev runs with auth OFF so dev.cortex.kakde.eu works without a Keycloak client / redirect URIs.
+# (Strategic merge: kustomize merges the env list by name, so this overrides the base value.)
+patches:
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: cortex
+      spec:
+        template:
+          spec:
+            containers:
+              - name: cortex
+                env:
+                  - name: AUTH_ENABLED
+                    value: "false"
+
+images:
+  - name: ghcr.io/ani2fun/cortex
+    newName: ghcr.io/ani2fun/cortex
+    newTag: latest

@@ -1,0 +1,26 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cortex
+  annotations:
+    kubernetes.io/ingress.class: traefik
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    cert-manager.io/cluster-issuer: letsencrypt-staging-dns01
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - dev.cortex.kakde.eu
+      secretName: dev-cortex-kakde-eu-tls
+  rules:
+    - host: dev.cortex.kakde.eu
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: cortex
+                port:
+                  number: 80

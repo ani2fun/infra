@@ -1,0 +1,21 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  # Owned by cortex, targets likec4 pods. Lets cortex's /c4/* reverse proxy reach the shared LikeC4
+  # SPA (deploy/apps/likec4). Stacks with likec4's other ingress rules (sibling of the codefolio one).
+  name: likec4-allow-ingress-from-cortex
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: likec4
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: cortex
+              app.kubernetes.io/component: app
+      ports:
+        - protocol: TCP
+          port: 8080
