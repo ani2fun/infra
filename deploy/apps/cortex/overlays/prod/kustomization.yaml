@@ -10,11 +10,7 @@ patches:
   target:
     kind: Deployment
     name: cortex
-# Auth ON: prod inherits the base AUTH_ENABLED=true + KEYCLOAK_* env. The cortex-web client exists in
-# the apps-prod realm (created 2026-06-08; GitHub IdP federated at the realm level).
 images:
 - name: ghcr.io/ani2fun/cortex
   newName: ghcr.io/ani2fun/cortex
-  # First build from the cortex repo (commit 46238e9). Future pushes auto-promote this via
-  # the build-push-promote workflow (now that this path exists on main).
-  newTag: 46238e9e722bf1066b9e95123aba3b94a47a4f3e
+  newTag: 7b419fbea108580aa29f0e3cb02b42d3a3881986
