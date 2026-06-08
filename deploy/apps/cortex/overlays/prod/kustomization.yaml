@@ -10,22 +10,8 @@ patches:
   target:
     kind: Deployment
     name: cortex
-# First deploy runs auth OFF so cortex.kakde.eu serves the book read-only without a Keycloak
-# `cortex-web` client yet. Delete this patch (prod then inherits base AUTH_ENABLED=true) once the
-# client exists in the apps-prod realm — see keycloak-client.md.
-- patch: |-
-    apiVersion: apps/v1
-    kind: Deployment
-    metadata:
-      name: cortex
-    spec:
-      template:
-        spec:
-          containers:
-            - name: cortex
-              env:
-                - name: AUTH_ENABLED
-                  value: "false"
+# Auth ON: prod inherits the base AUTH_ENABLED=true + KEYCLOAK_* env. The cortex-web client exists in
+# the apps-prod realm (created 2026-06-08; GitHub IdP federated at the realm level).
 images:
 - name: ghcr.io/ani2fun/cortex
   newName: ghcr.io/ani2fun/cortex
