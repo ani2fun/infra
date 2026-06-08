@@ -4,12 +4,7 @@ namespace: apps-prod
 resources:
 - ../../base
 - ingress.yaml
-- sealedsecret.yaml
-patches:
-- patch: "- op: replace\n  path: /spec/replicas\n  value: 2"
-  target:
-    kind: Deployment
-    name: codefolio
+# Static portfolio: single replica (no replicas patch), no DB (no sealedsecret).
 images:
 - name: ghcr.io/ani2fun/codefolio
   newName: ghcr.io/ani2fun/codefolio

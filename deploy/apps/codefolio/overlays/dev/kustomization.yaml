@@ -7,17 +7,6 @@ resources:
   - ../../base
   - ingress.yaml
 
-patches:
-  - patch: |-
-      - op: add
-        path: /spec/template/spec/containers/0/env/-
-        value:
-          name: PISTON_URL
-          value: "http://piston.apps-prod:2000"
-    target:
-      kind: Deployment
-      name: codefolio
-
 images:
   - name: ghcr.io/ani2fun/codefolio
     newName: ghcr.io/ani2fun/codefolio

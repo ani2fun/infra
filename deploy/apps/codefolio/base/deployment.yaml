@@ -22,30 +22,11 @@ spec:
           ports:
             - name: http
               containerPort: 8080
+          # Static portfolio — no databases, no auth, no code-runner. Just the listen port; the server
+          # serves the Vite bundle from /app/static and a trivial /api/health for the probes below.
           env:
             - name: PORT
               value: "8080"
-            - name: DB_URL
-              value: jdbc:postgresql://postgresql.databases-prod.svc.cluster.local:5432/codefolio
-            - name: DB_USER
-              value: codefolio
-            - name: DB_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: codefolio-db
-                  key: postgres-password
-            - name: REDIS_URL
-              value: redis://codefolio-redis:6379
-            - name: MONGO_URI
-              value: mongodb://codefolio-mongo:27017
-            - name: MONGO_DB
-              value: codefolio
-            # go-judge sandbox — the single code-execution backend for /api/run
-            # and the Cortex Visualise tracer (ADR-0029).
-            - name: EXECUTOR_URL
-              value: http://go-judge:5050
-            - name: CORTEX_AUTO_RELOAD
-              value: "false"
           startupProbe:
             httpGet:
               path: /api/health

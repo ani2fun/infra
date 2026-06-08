@@ -4,6 +4,3 @@ kind: Kustomization
 resources:
   - deployment.yaml
   - service.yaml
-  - redis.yaml
-  - mongo.yaml
-  - networkpolicy-likec4.yaml
