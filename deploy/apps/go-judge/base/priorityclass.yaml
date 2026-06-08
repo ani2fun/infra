@@ -1,0 +1,17 @@
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: go-judge-low
+  annotations:
+    # Apply this BEFORE the Deployment that references it, so a first-time Argo
+    # sync doesn't reject the pod at admission ("no PriorityClass named ...").
+    argocd.argoproj.io/sync-wave: "-1"
+# Negative value => ranks below every default-priority (0) workload, including
+# PostgreSQL (currently priority 0). Under node memory pressure the kubelet
+# evicts lower-priority pods first, so the untrusted-code executor is sacrificed
+# before the database. Added after the 2026-06-07 wk-1 OOM incident.
+value: -100
+globalDefault: false
+# An untrusted-code executor must never preempt other pods to schedule itself.
+preemptionPolicy: Never
+description: "Low priority for the go-judge untrusted-code executor; evicted first under node memory pressure, never preempts platform/database pods."

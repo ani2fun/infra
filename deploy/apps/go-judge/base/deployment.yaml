@@ -20,6 +20,18 @@ spec:
         app.kubernetes.io/component: executor
     spec:
       terminationGracePeriodSeconds: 30
+      # --- Placement & priority (added after the 2026-06-07 wk-1 OOM incident) ---
+      # Pin to wk-1: it has the RAM headroom (~30 GiB) to absorb a misbehaving
+      # sandbox. wk-2 is only ~7.6 GiB and already runs Keycloak + cert-manager +
+      # Argo CD, so a blowup there is far more damaging. Pinned by hostname (not a
+      # role label) so the intent is obvious in-manifest with no out-of-band
+      # `kubectl label` step to remember on a rebuild.
+      nodeSelector:
+        kubernetes.io/hostname: wk-1
+      # Below-default (negative) priority: under node memory pressure the kubelet
+      # evicts go-judge FIRST, and an untrusted executor can never preempt
+      # PostgreSQL or platform pods. See priorityclass.yaml.
+      priorityClassName: go-judge-low
       containers:
         - name: go-judge
           # Published by the codefolio CI workflow (runner/go-judge/Dockerfile):
@@ -32,9 +44,14 @@ spec:
           env:
             - name: ES_HTTP_ADDR
               value: ":5050"
-            # Concurrent sandboxes. Modest for a 2-CPU pod; scale with cpu/replicas.
+            # Concurrent sandboxes. Lowered 2 -> 1 after the 2026-06-07 wk-1 OOM
+            # incident to halve the worst-case concurrent memory blast radius.
+            # NOTE: this caps *concurrency*, not per-sandbox memory. The hard
+            # per-execution memory cap is enforced go-judge / codefolio-backend
+            # side (the execution request's memoryLimit + sandbox cgroup) and is
+            # the remaining containment gap this manifest cannot close.
             - name: ES_PARALLELISM
-              value: "2"
+              value: "1"
             # ES_NET_SHARE is left unset (default false): each sandbox gets an
             # isolated, network-LESS namespace — this is what stops executed code
             # phoning home, replacing the old runner's deny-all egress policy for
