@@ -4,8 +4,7 @@ namespace: apps-prod
 resources:
 - ../../base
 - ingress.yaml
-# Static portfolio: single replica (no replicas patch), no DB (no sealedsecret).
 images:
 - name: ghcr.io/ani2fun/codefolio
   newName: ghcr.io/ani2fun/codefolio
-  newTag: 00872c28da5bf22272bdcfbc845ff06dc9f6c7cd
+  newTag: 0bfdcbbde83a954c626d8eaa7af69508583f0a94
