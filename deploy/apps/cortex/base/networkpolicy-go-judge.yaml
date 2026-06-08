@@ -1,0 +1,24 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  # Owned by cortex, targets go-judge pods. Lets cortex's /api/run code-runner reach the shared
+  # go-judge sandbox executor (deploy/apps/go-judge) on :5050. Stacks additively with the existing
+  # go-judge-isolation policy (which only admits codefolio) — the split added cortex as a second
+  # consumer, so it needs its own ingress allowance (sibling of networkpolicy-likec4.yaml).
+  name: go-judge-allow-ingress-from-cortex
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: go-judge
+      app.kubernetes.io/component: executor
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: cortex
+              app.kubernetes.io/component: app
+      ports:
+        - protocol: TCP
+          port: 5050
