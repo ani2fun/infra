@@ -60,6 +60,11 @@ spec:
               value: apps-prod
             - name: KEYCLOAK_CLIENT_ID
               value: cortex-web
+            # The standalone Socratic tutor (deploy/apps/cortex-tutor). Surfaced to the SPA via
+            # /api/auth/config tutorBaseUrl; the frontend calls the tutor directly (SSE + JWT).
+            # Inert until a cortex build that reads CORTEX_TUTOR_BASE_URL ships (P5 server work).
+            - name: CORTEX_TUTOR_BASE_URL
+              value: https://cortex-tutor.kakde.eu
           startupProbe:
             httpGet:
               path: /api/health
