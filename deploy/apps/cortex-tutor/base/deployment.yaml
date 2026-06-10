@@ -1,0 +1,204 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cortex-tutor
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cortex-tutor
+      app.kubernetes.io/component: app
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cortex-tutor
+        app.kubernetes.io/component: app
+    spec:
+      terminationGracePeriodSeconds: 20
+      initContainers:
+        # Tutor schema migrations against the SHARED cortex Postgres (cortex-tutor ADR 0002).
+        # Liquibase's tracking tables are uniquely named (tutor_databasechangelog/-lock, set in the
+        # baked-in liquibase.properties), so this never collides with the cortex Scala app's own
+        # migration bookkeeping and is safe to re-run on every pod start.
+        - name: migrate
+          image: ghcr.io/ani2fun/cortex-tutor-migrate:latest
+          args:
+            - --defaults-file=/liquibase/changelog/liquibase.properties
+            - --search-path=/liquibase/changelog
+            - --url=jdbc:postgresql://postgresql.databases-prod.svc.cluster.local:5432/cortex
+            - --username=cortex
+            - --password=$(DB_PASSWORD)
+            - update
+          env:
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: cortex-db
+                  key: postgres-password
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+        # The grounding corpus is the cortex app image's content tree, copied out at pod start so
+        # the MCP sidecar serves exactly the chapters prod cortex renders. :latest + Always means a
+        # rollout/restart of this pod picks up the newest published content (the freshness hook the
+        # tutor's ADR 0002 follow-up asks for).
+        - name: corpus
+          image: ghcr.io/ani2fun/cortex:latest
+          imagePullPolicy: Always
+          command: ["sh", "-c", "cp -a /app/content/cortex /corpus/"]
+          volumeMounts:
+            - name: corpus
+              mountPath: /corpus
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+      containers:
+        # The FastAPI tutor: gate -> FSM -> coach per turn; SSE streaming. Public via ingress.
+        - name: tutor
+          image: ghcr.io/ani2fun/cortex-tutor:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            # Auth (shared Keycloak realm with cortex): the tutor only VALIDATES cortex-web JWTs —
+            # it never redirects, so no dedicated Keycloak client is required.
+            - name: AUTH_ENABLED
+              value: "true"
+            - name: KEYCLOAK_ISSUER_URL
+              value: https://keycloak.kakde.eu/realms/apps-prod
+            - name: KEYCLOAK_CLIENT_ID
+              value: cortex-web
+            # Homelab allowlist (server-key Claude tier). Everyone else: BYOK/locked. Fails CLOSED.
+            - name: COACH_HOMELAB_USERS
+              value: ani2fun
+            # Shared cortex DB, tutor schema (ADR 0002) — same instance + credentials as cortex.
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: cortex-db
+                  key: postgres-password
+            - name: DATABASE_URL
+              value: postgresql+asyncpg://cortex:$(DB_PASSWORD)@postgresql.databases-prod.svc.cluster.local:5432/cortex
+            # Grounding MCP is a sidecar in this pod — loopback, never leaves the pod.
+            - name: MCP_URL
+              value: http://127.0.0.1:8081/mcp
+            - name: MCP_SERVICE_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: cortex-tutor-secrets
+                  key: mcp-service-token
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: cortex-tutor-secrets
+                  key: anthropic-api-key
+            - name: CORS_ALLOW_ORIGINS
+              value: https://cortex.kakde.eu
+          startupProbe:
+            httpGet:
+              path: /readyz
+              port: 8000
+            failureThreshold: 30
+            periodSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 6
+          livenessProbe:
+            tcpSocket:
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+        # Read-only grounding MCP (Streamable HTTP) over the corpus volume. Same image as the
+        # tutor, different entrypoint. Loopback-only by intent: no Service exposes 8081, and the
+        # tutor authenticates to it with MCP_SERVICE_TOKEN (its own service identity, never the
+        # learner's JWT).
+        - name: grounding-mcp
+          image: ghcr.io/ani2fun/cortex-tutor:latest
+          imagePullPolicy: IfNotPresent
+          command: ["uv", "run", "python", "-m", "grounding_mcp.server"]
+          ports:
+            - name: mcp
+              containerPort: 8081
+          env:
+            - name: CORTEX_CONTENT_DIR
+              value: /corpus/cortex
+            - name: CORTEX_PUBLIC_BASE
+              value: https://cortex.kakde.eu
+            - name: MCP_SERVICE_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: cortex-tutor-secrets
+                  key: mcp-service-token
+          volumeMounts:
+            - name: corpus
+              mountPath: /corpus
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8081
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 6
+          livenessProbe:
+            tcpSocket:
+              port: 8081
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+      volumes:
+        - name: corpus
+          emptyDir: {}
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
