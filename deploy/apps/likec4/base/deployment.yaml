@@ -17,7 +17,7 @@ spec:
       terminationGracePeriodSeconds: 10
       # Run on the public edge node (vm-1). likec4 is a stateless, non-sensitive
       # diagram renderer (Tier-2), so it's safe on the edge — and moving it here
-      # frees wk-1 RAM for the Gemma model. Requires tolerating the edge taint.
+      # frees RAM on the home worker. Requires tolerating the edge taint.
       nodeSelector:
         kakde.eu/edge: "true"
       tolerations:

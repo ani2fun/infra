@@ -19,8 +19,8 @@ spec:
     spec:
       nodeSelector:
         kakde.eu/postgresql: "true"
-      # Top non-system tier: outranks the Gemma model + go-judge so the kubelet
-      # evicts those first under wk-1 memory pressure, never the database.
+      # Top non-system tier: outranks go-judge and other low-priority workloads so
+      # the kubelet evicts those first under wk-1 memory pressure, never the database.
       # See deploy/platform/priorityclasses/.
       priorityClassName: data-tier
       terminationGracePeriodSeconds: 120
@@ -63,7 +63,7 @@ spec:
               value: /var/lib/postgresql/data/pgdata
           # Guaranteed QoS (requests == limits) => oom_score_adj -997: the kernel
           # OOM-killer treats postgres as effectively unkillable, so it survives
-          # memory pressure from the wk-1 AI workload. Sized at 2Gi vs ~120Mi
+          # memory pressure from other wk-1 workloads. Sized at 2Gi vs ~120Mi
           # actual use (~17x headroom); raise both if you host heavier databases.
           resources:
             requests:

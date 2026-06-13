@@ -63,8 +63,9 @@ moving on to WireGuard.
   services are scoped to control-plane nodes only.
 
 ### wk-1
-- Runs `ollama.service` for local model inference. Not Kubernetes-managed.
-  Out of scope for this pack -- install separately if you want it back.
+- May run additional operator-managed host services (not Kubernetes-managed, out
+  of scope for this pack). Bound any such service's memory (systemd `MemoryMax=`)
+  so it cannot OOM the node -- see `NODE-HARDENING.md`.
 - PostgreSQL data lives on the same root filesystem (no separate disk).
   If you provision a separate data disk on rebuild, mount it at
   `/var/lib/rancher/k3s/storage` before installing K3s.

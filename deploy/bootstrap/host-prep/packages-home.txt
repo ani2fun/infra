@@ -25,8 +25,6 @@ unzip
 #   headless. Keep the GUI only if you accept that risk and have run hardening.
 # - chronyd is installed only on wk-2 (handled by prepare-host.sh based on
 #   hostname). systemd-timesyncd is the default on ms-1 and wk-1.
-# - ollama is installed only on wk-1 (operator preference, not Kubernetes-
-#   managed). Install separately from ollama.com after host prep. It is NOT
-#   memory-bounded by Kubernetes; on a node co-hosting the database, bound it
-#   (systemd MemoryMax=) or run the model in-cluster (ai-workload-low + a hard
-#   memory limit) so a loaded model cannot OOM the node. See NODE-HARDENING.md.
+# - wk-1 may run additional operator-managed host services that are NOT
+#   Kubernetes-managed and therefore unbounded by K8s. Bound any such service
+#   (systemd MemoryMax=) so it cannot OOM the node. See NODE-HARDENING.md.

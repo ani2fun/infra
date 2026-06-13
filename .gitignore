@@ -3,3 +3,7 @@
 **/.DS_Store
 CLAUDE.md
 .claude/settings.local.json
+
+# AI / model experimentation — kept local only, intentionally not published.
+/local-only/
+/deploy/HANDOFF-edge-ai-prep.md
