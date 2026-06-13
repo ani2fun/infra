@@ -1,0 +1,36 @@
+# Cluster-wide priority ladder for the homelab.
+#
+# PriorityClass governs the kubelet's node-pressure EVICTION order (higher value
+# = evicted later) and scheduling preemption. It pairs with QoS / oom_score_adj,
+# which is what the *kernel* OOM-killer actually uses to pick a victim:
+# Guaranteed pods (requests == limits) get oom_score_adj -997 and are spared
+# almost unconditionally — that's the real protection for PostgreSQL.
+#
+# Ladder, high -> low:
+#   system-node-critical      2000001000   (built-in)
+#   system-cluster-critical   2000000000   (built-in)
+#   data-tier                 1000000      PostgreSQL / stateful data  <-- protect
+#   (default)                 0            normal app workloads (codefolio, cortex, ...)
+#   ai-workload-low            -50         Gemma model: bounded + sheddable
+#   go-judge-low              -100         untrusted code: first to die (defined in the go-judge app)
+#
+# Intent on wk-1 (DB + AI co-tenant): under memory pressure the kubelet sheds
+# go-judge, then the Gemma model, long before it touches the apps or the database.
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: data-tier
+value: 1000000
+globalDefault: false
+description: "Stateful data services (PostgreSQL). High priority so the kubelet evicts AI/batch workloads before the database under node memory pressure."
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: ai-workload-low
+value: -50
+globalDefault: false
+# A local LLM must never preempt other pods to schedule itself.
+preemptionPolicy: Never
+description: "Local AI inference (Gemma model): bounded by a hard memory limit and sheddable. Ranks below normal apps so it yields before user-facing workloads, but above untrusted go-judge."
