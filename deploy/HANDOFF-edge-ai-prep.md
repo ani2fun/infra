@@ -32,6 +32,18 @@ go-judge-low      -100      untrusted code — first to die        (in deploy/ap
 
 ## Apply / rollout — do these in order
 
+> **Status — applied & verified 2026-06-13.** Steps 1–2 (priority classes,
+> PostgreSQL QoS/priority) were already applied by hand on `ms-1` before the
+> merge. Step 3 (`codefolio` + `likec4` edge pin) rolled out when this branch
+> merged to `main` — Argo rescheduled both onto `ctb-edge-1`. Step 4 (`whoami`)
+> has no live resources. Verified: postgres `qos=Guaranteed prio=data-tier` and
+> Ready on wk-1, both apps `1/1` on the edge node, `kakde.eu` serving HTTP 200
+> with a valid cert. The steps below are retained for rebuild value.
+>
+> (Verification ran just after a wk-1 reboot — kernel upgrade to `6.17.0-35` at
+> 15:42 — which briefly took the node `NotReady`; postgres, go-judge and cortex
+> recovered on their own once it rejoined.)
+
 `deploy/platform/` is **not** Argo-synced; apply it by hand from `ms-1`. Order
 matters: the PostgreSQL pod references `data-tier`, so the class must exist first
 or admission rejects the pod (`no PriorityClass named "data-tier"`).
@@ -73,9 +85,9 @@ or admission rejects the pod (`no PriorityClass named "data-tier"`).
     reads wrong on a non-DB workload).
   - set `priorityClassName: ai-workload-low`.
   - set a **hard memory limit** so it stays bounded + sheddable (the class assumes this).
-- [ ] **Re-check edge node capacity** after codefolio + likec4 land. `ctb-edge-1`
-  is the small public cloud node; confirm it isn't memory-pressured now that it
-  hosts Traefik + two more apps (`kubectl top node ctb-edge-1`).
+- [x] **Re-check edge node capacity** — done 2026-06-13. With Traefik + codefolio
+  + likec4 all on `ctb-edge-1`, the node sits at ~12% memory / ~4% CPU
+  (`kubectl top node ctb-edge-1`). Not memory-pressured; ample headroom.
 - [ ] **likec4 placement style** — edge pinning is in `base`, so it has no per-env
   override. Fine today (no dev overlay exists), but if a `likec4` dev overlay is
   ever added, move the nodeSelector/tolerations to the prod overlay to match the
