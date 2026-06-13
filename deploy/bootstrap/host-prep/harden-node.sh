@@ -7,14 +7,14 @@
 # wk-1 is installed as Ubuntu **Desktop** (GNOME/GDM, see packages-home.txt) and
 # used as a K3s worker. On 2026-06-12 a graphical session ("session-c1.scope")
 # grew to a 26 GB peak on the 30 GB node. With the database, go-judge (java),
-# Calico and a host `ollama` (operator preference, not K8s-managed) also resident
-# — and swap intentionally OFF (the K3s/kubelet default) — the kernel hit repeated
+# Calico and another host process also resident — and swap intentionally OFF
+# (the K3s/kubelet default) — the kernel hit repeated
 # node-wide OOM. Because `vm.panic_on_oom=0`, the kernel did not reboot; it thrashed
 # until the box was unreachable (no SSH, no WireGuard) and had to be power-cycled by
 # hand ~7 hours later.
 #
-# Kubernetes priority/QoS could NOT prevent this: a GNOME session and a host
-# `ollama` are not pods, so the kubelet can neither limit nor evict them. The fix is
+# Kubernetes priority/QoS could NOT prevent this: a GNOME session and a host-level
+# process are not pods, so the kubelet can neither limit nor evict them. The fix is
 # at the host layer. This script does the two things that close the failure mode —
 # both reversible, both consistent with the repo's swap-off design:
 #
@@ -79,12 +79,29 @@ for svc in "${CRUFT[@]}"; do
 done
 
 if [[ "$PURGE_DESKTOP" -eq 1 ]]; then
-  log "purging GNOME desktop stack (apt)"
+  # CRITICAL: on home nodes NetworkManager manages the primary link (netplan
+  # renderer: NetworkManager) and systemd-networkd is inactive. The desktop
+  # metapackages pull network-manager, so a naive `autoremove` after purging the
+  # desktop could DELETE network-manager and strand the node with no network — the
+  # one outcome worse than today. Pin the network/boot/ssh essentials as 'manual'
+  # so autoremove can never treat them as orphans, then verify before removing.
+  log "pinning network/boot/ssh packages so autoremove cannot delete them"
+  apt-mark manual network-manager network-manager-config-connectivity-ubuntu \
+      netplan.io openssh-server wpasupplicant linux-generic-hwe-24.04 \
+      >/dev/null 2>&1 || true
   export DEBIAN_FRONTEND=noninteractive
-  apt-get purge -y ubuntu-desktop ubuntu-desktop-minimal gnome-shell gdm3 \
-      gnome-control-center gnome-remote-desktop 'cups*' avahi-daemon \
-      modemmanager 2>/dev/null || true
-  apt-get autoremove --purge -y 2>/dev/null || true
+  log "purging GNOME desktop stack"
+  apt-get purge -y ubuntu-desktop ubuntu-desktop-minimal gnome-shell 'gnome-shell-*' \
+      gdm3 gnome-control-center gnome-remote-desktop 2>/dev/null || true
+  # Belt-and-suspenders: abort autoremove if it would still touch an essential.
+  if apt-get autoremove --purge -s 2>/dev/null \
+       | grep -qE '^Remv (network-manager|netplan|openssh-server|linux-image|linux-generic|systemd|wpasupplicant)\b'; then
+    echo "WARN: autoremove would touch a critical package — SKIPPED. Inspect by hand:" >&2
+    echo "      apt-get autoremove --purge -s" >&2
+  else
+    apt-get autoremove --purge -y 2>/dev/null || true
+  fi
+  log "network-manager still installed: $(dpkg -l network-manager 2>/dev/null | awk '/^ii/{print $3}' || echo MISSING)"
 fi
 
 # ---------------------------------------------------------------------------
@@ -102,6 +119,10 @@ kernel.panic_on_oops = 1
 # Keep a larger free reserve so the kernel/network stack don't starve before the
 # OOM killer (or a kubelet eviction) can act.
 vm.min_free_kbytes = 131072
+# Magic SysRq fully enabled: a wedged-but-alive node can be rebooted SAFELY from a
+# physically-attached keyboard (Alt+SysRq+R,E,I,S,U,B) instead of a hard power cut
+# that risks the node-local Postgres data. See deploy/dr/node-console-recovery.md.
+kernel.sysrq = 1
 CONF
 log "wrote $SYSCTL"
 sysctl --system >/dev/null
