@@ -60,11 +60,14 @@ spec:
               value: apps-prod
             - name: KEYCLOAK_CLIENT_ID
               value: cortex-web
-            # The standalone Socratic tutor (deploy/apps/cortex-tutor). Surfaced to the SPA via
-            # /api/auth/config tutorBaseUrl; the frontend calls the tutor directly (SSE + JWT).
-            # Inert until a cortex build that reads CORTEX_TUTOR_BASE_URL ships (P5 server work).
+            # The standalone Socratic tutor (deploy/apps/cortex-tutor) is INTERNAL-ONLY while
+            # WIP: ClusterIP, no public ingress. This points cortex at the in-cluster Service.
+            # NOTE: the SPA is designed to call the tutor directly from the browser (SSE + JWT),
+            # which CANNOT reach a cluster-internal URL — so before the tutor is exposed the
+            # cortex backend must proxy it (e.g. cortex.kakde.eu/tutor/*). Until then this stays
+            # internal. Inert anyway until a cortex build that reads CORTEX_TUTOR_BASE_URL ships.
             - name: CORTEX_TUTOR_BASE_URL
-              value: https://cortex-tutor.kakde.eu
+              value: http://cortex-tutor.apps-prod.svc.cluster.local
           startupProbe:
             httpGet:
               path: /api/health
