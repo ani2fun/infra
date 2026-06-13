@@ -19,8 +19,14 @@ unzip
 # Notes:
 # - ubuntu-desktop-minimal is currently installed on all three home nodes.
 #   It is NOT listed here because it is not required for cluster operation.
-#   Install it separately if you want the GUI.
+#   Install it separately if you want the GUI. ** WARNING: a GNOME session
+#   caused the 2026-06-13 wk-1 outage (26 GB peak -> node-wide OOM -> wedge). **
+#   On nodes used purely as K3s servers/workers, run harden-node.sh to boot
+#   headless. Keep the GUI only if you accept that risk and have run hardening.
 # - chronyd is installed only on wk-2 (handled by prepare-host.sh based on
 #   hostname). systemd-timesyncd is the default on ms-1 and wk-1.
 # - ollama is installed only on wk-1 (operator preference, not Kubernetes-
-#   managed). Install separately from ollama.com after host prep.
+#   managed). Install separately from ollama.com after host prep. It is NOT
+#   memory-bounded by Kubernetes; on a node co-hosting the database, bound it
+#   (systemd MemoryMax=) or run the model in-cluster (ai-workload-low + a hard
+#   memory limit) so a loaded model cannot OOM the node. See NODE-HARDENING.md.

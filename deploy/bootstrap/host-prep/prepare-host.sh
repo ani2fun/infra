@@ -89,6 +89,8 @@ fi
 
 echo "==> installing sysctl files"
 install -m 0644 "$ROOT/sysctl/99-k3s-calico.conf" /etc/sysctl.d/99-k3s-calico.conf
+# OOM auto-recovery on every node (self-heal instead of wedging — see 20-oom-resilience.conf).
+install -m 0644 "$ROOT/sysctl/20-oom-resilience.conf" /etc/sysctl.d/20-oom-resilience.conf
 
 # Reuse the wireguard sysctl from ../wireguard/. If the source is not
 # present (e.g. the operator only copied host-prep/), warn but continue;
