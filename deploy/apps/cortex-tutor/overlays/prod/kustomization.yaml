@@ -1,15 +1,13 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: apps-prod
-# WIP tutor: kept INTERNAL-ONLY (ClusterIP, no public ingress) until the feature
-# is ready. Reachable only in-cluster at cortex-tutor.apps-prod.svc.cluster.local.
 resources:
 - ../../base
 - sealedsecret.yaml
 images:
 - name: ghcr.io/ani2fun/cortex-tutor
   newName: ghcr.io/ani2fun/cortex-tutor
-  newTag: 0eb03bdd541ba6b048d935549f34dea17af88877
+  newTag: b7f40066e84e76b1a0b2e4783897cdfd86b16543
 - name: ghcr.io/ani2fun/cortex-tutor-migrate
   newName: ghcr.io/ani2fun/cortex-tutor-migrate
-  newTag: 0eb03bdd541ba6b048d935549f34dea17af88877
+  newTag: b7f40066e84e76b1a0b2e4783897cdfd86b16543
