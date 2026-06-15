@@ -6,7 +6,7 @@ This folder reconstructs the documented Argo CD setup:
 - pin workloads to `wk-2` through `workload=argocd`
 - disable internal TLS on `argocd-server`
 - expose the UI at `https://argocd.kakde.eu` through standard Kubernetes `Ingress`
-- keep codefolio, dsa-tracker, and piston as `Application` resources pointing at this repo
+- keep codefolio, cortex, cortex-tutor, go-judge, and likec4 as `Application` resources pointing at this repo
 
 ## Current limitation
 

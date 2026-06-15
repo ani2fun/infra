@@ -68,61 +68,11 @@ workloads:
       tls_secret: dev-codefolio-kakde-eu-tls
       cluster_issuer: letsencrypt-staging-dns01
 
-  - name: piston
-    namespace: apps-prod
-    kind: Deployment
-    managed_by: argocd
-    source_path: deploy/apps/piston/overlays/prod
-    # Piston manifest pins by digest; the :latest tag in the manifest is
-    # overridden by an `image:` field that includes @sha256.
-    image: ghcr.io/engineer-man/piston@sha256:2f66b7456189c4d713aa986d98eccd0b6ee16d26c7ec5f21b30e942756fd127a
-    image_digest: sha256:2f66b7456189c4d713aa986d98eccd0b6ee16d26c7ec5f21b30e942756fd127a
-    replicas: 1
-    service:
-      name: piston
-      port: 2000
-      target_port: 2000
-    # Piston has NO public Ingress. It is reached only in-cluster via
-    # `piston.apps-prod.svc.cluster.local:2000` — codefolio's server
-    # proxies all `/api/run` calls server-side. The notebook-piston-api
-    # Ingress and notebook-piston-ratelimit Middleware were retired with
-    # note-book.
-    api_route:
-      via_service: piston.apps-prod.svc.cluster.local:2000
-      consumers:
-        - codefolio (server-side proxy in /api/run pipeline)
-
-  - name: dsa-tracker-backend
-    namespace: apps-prod
-    kind: Deployment
-    managed_by: argocd
-    source_path: deploy/apps/dsa-tracker/overlays/prod
-    image: ghcr.io/ani2fun/dsa-tracker-backend:a62470690a49f10432b0e15814d11823ac1cfdbe
-    image_digest: sha256:23092d4edc044ab3d0fe51fbd420292aae6fe8dbe80b0879e6d506f9e820a07b
-    replicas: 2
-    service:
-      name: dsa-tracker-backend
-      port: 8080
-      target_port: 8080
-    secrets:
-      - dsa-tracker-db   # SealedSecret committed at deploy/apps/dsa-tracker/overlays/prod/sealedsecret.yaml
-
-  - name: dsa-tracker-frontend
-    namespace: apps-prod
-    kind: Deployment
-    managed_by: argocd
-    source_path: deploy/apps/dsa-tracker/overlays/prod
-    image: ghcr.io/ani2fun/dsa-tracker-frontend:1fcdfe9051fdfc4224a8b4bb3b553161e1a4f593
-    image_digest: sha256:109b5935d94ea2fa5ee26f4f5cb1142fae3aa80aa7e2628d46f0eef8b64d56ec
-    replicas: 2
-    service:
-      name: dsa-tracker-frontend
-      port: 80
-      target_port: 3000
-    ingress:
-      host: dsa-tracker.kakde.eu
-      tls_secret: dsa-tracker-kakde-eu-tls
-      cluster_issuer: letsencrypt-prod-dns01
+  # NOTE: piston and dsa-tracker (backend + frontend) were retired and removed
+  # (2026-06-15); their entries were deleted from this inventory. go-judge
+  # replaced piston as the in-cluster code runner. This file still predates the
+  # cortex / cortex-tutor / go-judge / likec4 apps — refresh it from live state
+  # (deploy/live-capture/collect-live-state.sh) to add them.
 
   - name: postgresql
     namespace: databases-prod

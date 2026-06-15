@@ -179,11 +179,11 @@ ssh ms-1 'kubectl -n argocd get pods'
 # all Running
 ```
 
-**L7-B** All three Applications Synced + Healthy.
+**L7-B** All Applications Synced + Healthy.
 
 ```bash
 ssh ms-1 'kubectl -n argocd get application -o wide'
-# expected: 3 rows (codefolio, dsa-tracker, piston)
+# expected: 5 rows (codefolio, cortex, cortex-tutor, go-judge, likec4)
 # all Synced + Healthy
 ```
 

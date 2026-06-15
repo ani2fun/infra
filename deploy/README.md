@@ -7,7 +7,7 @@ live sync and for an operator-driven rebuild from cold metal.
 
 | Folder | What lives here | Touched by Argo CD? |
 |---|---|---|
-| `apps/` | Application manifests with `base/` + `overlays/{dev,prod}/` per app. Argo CD `Application` objects point at `apps/<name>/overlays/prod/` for the three GitOps-tracked apps (codefolio, dsa-tracker, piston). Also holds `keycloak/` and `whoami/`, which are deployed manually with `kubectl apply -k`, plus the `dummy-app-template` reference. | **Yes** for the three GitOps apps; **no** for keycloak/whoami |
+| `apps/` | Application manifests with `base/` + `overlays/{dev,prod}/` per app. Argo CD `Application` objects point at `apps/<name>/overlays/prod/` for the GitOps-tracked apps (codefolio, cortex, cortex-tutor, go-judge, likec4). Also holds `keycloak/` and `whoami/`, which are deployed manually with `kubectl apply -k`, plus the `dummy-app-template` reference. | **Yes** for the GitOps apps; **no** for keycloak/whoami |
 | `bootstrap/` | Cold-metal bootstrap scripts and configs for host OS prep, K3s install, and WireGuard mesh setup. Run from the operator's laptop on a fresh node. | No |
 | `platform/` | Manifests and install scripts for cluster platform services (traefik, cert-manager, sealed-secrets, argocd, postgresql). Used during rebuild; the `applications/` subfolder under `platform/argocd/` defines the Argo CD `Application` resources themselves. | **No** -- these are reference / one-shot bootstrap material. Do NOT add them to a kustomize root or another Argo Application. |
 | `dr/` | Disaster-recovery pack: `RUNBOOK.md`, `SNAPSHOT.md`, `gates.md`, `secret-recovery.md`, sealed-secrets backup procedure, keycloak realm export procedure. | No |
@@ -23,9 +23,6 @@ live sync and for an operator-driven rebuild from cold metal.
 3. Argo CD's `Application` (declared in
    `deploy/platform/argocd/applications/<app>.yaml` with
    `path: deploy/apps/<app>/overlays/prod`) auto-syncs the change.
-
-`piston` has no upstream CI bumper -- update its image manually if you
-need to roll it forward.
 
 ## Where to start
 

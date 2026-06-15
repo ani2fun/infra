@@ -3,8 +3,8 @@ kind: Kustomization
 
 # NOTE: deliberately NO `labels: includeSelectors: true` here. The NetworkPolicy
 # inlines a cross-app `from: codefolio` podSelector, which selector-injection
-# would silently rewrite to name=go-judge (see the piston base for that trap).
-# Labels are written explicitly in each manifest instead.
+# would silently rewrite to name=go-judge. Labels are written explicitly in each
+# manifest instead.
 
 resources:
   - priorityclass.yaml

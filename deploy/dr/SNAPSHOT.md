@@ -126,14 +126,15 @@ restore; tags can drift.
 
 ### Argo CD-managed apps
 
+> **Stale — refresh via `deploy/live-capture/collect-live-state.sh`.** piston and
+> dsa-tracker were retired 2026-06-15 (rows removed below). Not yet captured here:
+> cortex, cortex-tutor (+ `-migrate`), go-judge, likec4, cortex-mongo, cortex-redis.
+
 | App | Image | Digest |
 |---|---|---|
 | codefolio (prod) | `ghcr.io/ani2fun/codefolio:<sha>` | `<captured-on-next-snapshot>` |
 | codefolio-redis | `docker.io/library/redis:7-alpine` | `<captured-on-next-snapshot>` |
 | codefolio-mongo | `docker.io/library/mongo:7` | `<captured-on-next-snapshot>` |
-| dsa-tracker-backend | `ghcr.io/ani2fun/dsa-tracker-backend:a62470690a49f10432b0e15814d11823ac1cfdbe` | `sha256:23092d4edc044ab3d0fe51fbd420292aae6fe8dbe80b0879e6d506f9e820a07b` |
-| dsa-tracker-frontend | `ghcr.io/ani2fun/dsa-tracker-frontend:1fcdfe9051fdfc4224a8b4bb3b553161e1a4f593` | `sha256:109b5935d94ea2fa5ee26f4f5cb1142fae3aa80aa7e2628d46f0eef8b64d56ec` |
-| piston | `ghcr.io/engineer-man/piston:latest` | `sha256:2f66b7456189c4d713aa986d98eccd0b6ee16d26c7ec5f21b30e942756fd127a` |
 
 ### Manually applied apps
 
@@ -155,10 +156,11 @@ templates; deploy via the steps in that directory's README if/when
 | Application | Source path | Tracked branch | Synced commit | Sync policy |
 |---|---|---|---|---|
 | `codefolio` | `deploy/apps/codefolio/overlays/prod` | `main` | `<captured-on-next-snapshot>` | auto, prune, selfHeal |
-| `piston` | `deploy/apps/piston/overlays/prod` | `main` | `b2e353931c637ecc391cf60e3d8be2070bed4f69` | auto, prune, selfHeal |
-| `dsa-tracker` | `deploy/apps/dsa-tracker/overlays/prod` | `main` | `b2e353931c637ecc391cf60e3d8be2070bed4f69` | auto, prune, selfHeal |
 
-All three Applications point at `https://github.com/ani2fun/infra.git`.
+> Retired 2026-06-15: `piston`, `dsa-tracker`. Not yet captured: `cortex`,
+> `cortex-tutor`, `go-judge`, `likec4` (all auto/prune/selfHeal).
+
+All Applications point at `https://github.com/ani2fun/infra.git`.
 
 ---
 
@@ -167,7 +169,6 @@ All three Applications point at `https://github.com/ani2fun/infra.git`.
 | Bound to | Size | StorageClass | Storage path on host |
 |---|---|---|---|
 | `databases-prod/data-postgresql-0` | 80 Gi | `local-path` | `/var/lib/rancher/k3s/storage/...` on `wk-1` |
-| `apps-prod/piston-packages` | 10 Gi | `local-path` | `/var/lib/rancher/k3s/storage/...` (current scheduling node) |
 
 The `local-path` provisioner uses the host filesystem directly. PVC data is
 **not** replicated; loss of `wk-1`'s root disk = loss of postgres data.

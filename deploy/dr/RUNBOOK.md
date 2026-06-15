@@ -346,17 +346,19 @@ ssh root@ms-1 'bash -s' < deploy/platform/argocd/configure-argocd.sh
 ssh root@ms-1 'kubectl apply -f' deploy/platform/argocd/argocd-ingress.yaml
 ```
 
-### L7.3 Apply the three Applications
+### L7.3 Apply the Applications
 
 ```bash
 ssh root@ms-1 'kubectl apply -f' deploy/platform/argocd/applications/codefolio.yaml
-ssh root@ms-1 'kubectl apply -f' deploy/platform/argocd/applications/dsa-tracker.yaml
-ssh root@ms-1 'kubectl apply -f' deploy/platform/argocd/applications/piston.yaml
+ssh root@ms-1 'kubectl apply -f' deploy/platform/argocd/applications/cortex.yaml
+ssh root@ms-1 'kubectl apply -f' deploy/platform/argocd/applications/cortex-tutor.yaml
+ssh root@ms-1 'kubectl apply -f' deploy/platform/argocd/applications/go-judge.yaml
+ssh root@ms-1 'kubectl apply -f' deploy/platform/argocd/applications/likec4.yaml
 ```
 
-(or `kubectl apply -f deploy/platform/argocd/applications/`)
+(or `kubectl apply -f deploy/platform/argocd/applications/` — skips the `inactive/` subdir)
 
-Argo CD will sync the three overlays from `deploy/.../overlays/prod/` in
+Argo CD will sync each Application's source path from
 this repo. Each app's `SealedSecret` (where applicable) decrypts via the
 controller key restored in L4.
 
