@@ -12,7 +12,7 @@ day, how to apply it, and what breaks if it's lost.
 | `keycloak-admin-secret` | `identity` | Password manager | `kubectl create secret` | Lose admin console access; recreate via `KC_BOOTSTRAP_ADMIN_*` env on a fresh Keycloak |
 | `keycloak-db-secret` | `identity` | Password manager (must match `pg_authid`) | `kubectl create secret` | Keycloak can't connect to its DB; rotate role + secret together |
 | `keycloak-github-oauth` | `identity` | Sealed-secrets restore (preferred) or rotate at github.com | sealed-secrets controller, or `scripts/secrets/rotate-keycloak-github-oauth.sh` | GitHub login broker fails; users can still use direct Keycloak accounts |
-| `dsa-tracker-db` | `apps-prod` | Sealed-secrets restore (preferred) or postgres password rotation | sealed-secrets controller, or `scripts/secrets/rotate-generic-secret.sh` | dsa-tracker backend can't reach postgres |
+| `cortex-db` | `apps-prod` | Sealed-secrets restore (preferred) or postgres password rotation | sealed-secrets controller, or `scripts/secrets/rotate-generic-secret.sh` | cortex / cortex-tutor can't reach postgres |
 | `whoami-oauth2-proxy` | `apps` (when deployed) | Generate fresh values | `scripts/secrets/seal-whoami-oauth2-proxy.sh` | whoami-auth.kakde.eu fails; whoami.kakde.eu unaffected |
 | TLS cert Secrets (`*-tls`) | various | cert-manager re-issues automatically | cert-manager | Brief unavailability while DNS-01 challenge completes |
 | WireGuard private keys | each node `/etc/wireguard/wg0.key` | Password manager (4 entries) or generate fresh | `scp` + `wg-quick down/up wg0` | Mesh fails; cluster API unreachable; rebuild from L2 |
@@ -162,11 +162,12 @@ Committed to Git as a SealedSecret at
 
 ---
 
-### `dsa-tracker-db` (apps-prod)
+### `cortex-db` (apps-prod)
 
-**Why it's needed.** Postgres role password used by the dsa-tracker
-backend. SealedSecret committed at
-`deploy/apps/dsa-tracker/overlays/prod/sealedsecret.yaml`.
+**Why it's needed.** Postgres role password used by the cortex and
+cortex-tutor backends (env `secretKeyRef` name `cortex-db`, key
+`postgres-password`). SealedSecret committed at
+`deploy/apps/cortex/overlays/prod/sealedsecret.yaml`.
 
 **Source on rebuild.**
 
@@ -175,13 +176,13 @@ backend. SealedSecret committed at
   1. Pick a new password.
   2. Update postgres:
      `ALTER ROLE appuser WITH PASSWORD '<<NEW>>';` (or whatever the role
-     name is for dsa-tracker).
+     name is for cortex).
   3. Reseal:
 
      ```bash
      scripts/secrets/rotate-generic-secret.sh \
-       apps-prod dsa-tracker-db \
-       deploy/apps/dsa-tracker/overlays/prod/sealedsecret.yaml \
+       apps-prod cortex-db \
+       deploy/apps/cortex/overlays/prod/sealedsecret.yaml \
        postgres-password='<<NEW>>'
      ```
 

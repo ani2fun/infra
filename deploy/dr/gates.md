@@ -51,7 +51,7 @@ ssh vm-1 'for p in 51820 51821 51822; do timeout 2 nc -uvz 82.123.119.181 $p 2>&
 **L1-B** Cloudflare A records resolve to the edge IP.
 
 ```bash
-for h in kakde.eu dev.codefolio.kakde.eu argocd.kakde.eu keycloak.kakde.eu whoami.kakde.eu dsa-tracker.kakde.eu; do
+for h in kakde.eu dev.codefolio.kakde.eu cortex.kakde.eu argocd.kakde.eu keycloak.kakde.eu whoami.kakde.eu; do
   echo "$h -> $(dig +short $h @1.1.1.1)"
 done
 # expected: every record returns 84.247.143.66
@@ -121,9 +121,9 @@ ssh ms-1 'kubectl get secret -n kube-system -l sealedsecrets.bitnami.com/sealed-
 **L4-B** A committed SealedSecret can decrypt.
 
 ```bash
-ssh ms-1 'kubectl -n apps-prod get secret dsa-tracker-db -o jsonpath="{.data.postgres-password}" | head -c 6'
+ssh ms-1 'kubectl -n apps-prod get secret cortex-db -o jsonpath="{.data.postgres-password}" | head -c 6'
 # expected: 6 characters of base64 (any value); confirms the controller
-# successfully decrypted the committed deploy/apps/dsa-tracker/overlays/prod/sealedsecret.yaml
+# successfully decrypted the committed deploy/apps/cortex/overlays/prod/sealedsecret.yaml
 ```
 
 ## L5 -- Traefik
@@ -239,7 +239,7 @@ curl -sI https://keycloak.kakde.eu/realms/kakde/.well-known/openid-configuration
 
 ```bash
 ssh ms-1 'scripts/dr/backup-keycloak-realm.sh /tmp'
-# expected: clients count >0, including dsa-tracker-web (if that's the
+# expected: clients count >0, including cortex-web (if that's the
 # Keycloak client name)
 ```
 
@@ -248,9 +248,8 @@ ssh ms-1 'scripts/dr/backup-keycloak-realm.sh /tmp'
 **L10-A** Every public host responds.
 
 ```bash
-for h in kakde.eu dev.codefolio.kakde.eu \
-         argocd.kakde.eu keycloak.kakde.eu whoami.kakde.eu \
-         dsa-tracker.kakde.eu; do
+for h in kakde.eu dev.codefolio.kakde.eu cortex.kakde.eu \
+         argocd.kakde.eu keycloak.kakde.eu whoami.kakde.eu; do
   printf "%-32s " "$h"
   curl -sI "https://$h/" -o /dev/null -w "%{http_code}\n" || echo "FAIL"
 done

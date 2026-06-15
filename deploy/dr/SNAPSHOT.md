@@ -63,11 +63,11 @@ All A records resolve to `84.247.143.66`:
 
 - `kakde.eu`
 - `dev.codefolio.kakde.eu`
+- `cortex.kakde.eu`
 - `argocd.kakde.eu`
 - `keycloak.kakde.eu`
 - `whoami.kakde.eu`
 - `whoami-auth.kakde.eu`
-- `dsa-tracker.kakde.eu`
 
 ## Host-level facts (per node)
 

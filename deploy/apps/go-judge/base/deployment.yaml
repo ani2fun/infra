@@ -92,7 +92,7 @@ spec:
           # cgroup-v2-NATIVE, so NO node cgroup-v1 flip and NO nodeSelector are
           # needed — it runs on the standard v2 nodes.
           # No pod-level seccompProfile: RuntimeDefault would block the syscalls
-          # go-judge needs to build sandboxes (same as the piston pod).
+          # go-judge needs to build sandboxes.
           securityContext:
             privileged: true
       volumes:

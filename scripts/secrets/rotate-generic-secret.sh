@@ -3,7 +3,7 @@ set -euo pipefail
 
 usage() {
   echo "Usage: $0 <namespace> <secret-name> <output-yaml> <key=value> [key=value ...]" >&2
-  echo "Example: $0 apps-prod dsa-tracker-db deploy/apps/dsa-tracker/overlays/prod/sealedsecret.yaml postgres-password=abc" >&2
+  echo "Example: $0 apps-prod cortex-db deploy/apps/cortex/overlays/prod/sealedsecret.yaml postgres-password=abc" >&2
 }
 
 if [ "$#" -lt 4 ]; then

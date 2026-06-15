@@ -485,9 +485,8 @@ If you want the OIDC-protected variant, follow the activation steps in
 End-to-end public reachability:
 
 ```bash
-for h in kakde.eu dev.codefolio.kakde.eu \
-         argocd.kakde.eu keycloak.kakde.eu whoami.kakde.eu \
-         dsa-tracker.kakde.eu; do
+for h in kakde.eu dev.codefolio.kakde.eu cortex.kakde.eu \
+         argocd.kakde.eu keycloak.kakde.eu whoami.kakde.eu; do
   printf "%-32s " "$h"
   curl -sI "https://$h/" -o /dev/null -w "%{http_code}\n" || echo "FAIL"
 done

@@ -7,4 +7,3 @@ scripts/secrets/seal-cortex-tutor-secrets.sh <anthropic-api-key> [mcp-service-to
 scripts/secrets/read-secret-value.sh identity keycloak-github-oauth client-id
 scripts/secrets/read-keycloak-admin-credentials.sh
 scripts/secrets/read-keycloak-db-password.sh
-scripts/secrets/read-dsa-tracker-db-password.sh

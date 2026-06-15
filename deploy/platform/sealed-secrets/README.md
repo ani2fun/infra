@@ -126,22 +126,22 @@ The controller creates `Secret/my-secret` from `SealedSecret/my-secret`.
 
 ## Real example from this repo
 
-For `dsa-tracker`, the encrypted manifests live here:
+For `cortex`, the encrypted manifest lives here:
 
-- `deploy/apps/dsa-tracker/overlays/prod/sealedsecret.yaml`
+- `deploy/apps/cortex/overlays/prod/sealedsecret.yaml`
 
 It produces this runtime secret in `apps-prod`:
 
-- `dsa-tracker-db`
+- `cortex-db`
 
-And the app references them from:
-
-- `deploy/apps/dsa-tracker/base/backend-deployment.yaml`
+And the app references it from the cortex and cortex-tutor Deployments via
+a `secretKeyRef` (name `cortex-db`, key `postgres-password`).
 
 Examples:
 
-- `dsa-tracker-db` stores the PostgreSQL password
-- DSA Tracker images are published from public GHCR packages, so the app no longer needs a registry pull secret
+- `cortex-db` stores the PostgreSQL password
+- cortex images are published from public GHCR packages, so the app no longer needs a registry pull secret
+- `cortex-tutor-secrets` (`deploy/apps/cortex-tutor/overlays/prod/sealedsecret.yaml`) holds the keys `mcp-service-token` and `anthropic-api-key`
 
 ## Creating a generic app secret in the future
 
@@ -202,7 +202,7 @@ Instead:
 Example:
 
 ```bash
-kubectl create secret generic dsa-tracker-db \
+kubectl create secret generic cortex-db \
   --namespace apps-prod \
   --from-literal=postgres-password='new-password' \
   --dry-run=client \
@@ -210,14 +210,14 @@ kubectl create secret generic dsa-tracker-db \
 kubeseal \
   --cert /tmp/sealed-secrets-cert.pem \
   --format yaml \
-  > deploy/apps/dsa-tracker/overlays/prod/sealedsecret.yaml
+  > deploy/apps/cortex/overlays/prod/sealedsecret.yaml
 ```
 
 Project wrappers in this repo automate the common cases:
 
 ```bash
-scripts/secrets/rotate-generic-secret.sh apps-prod dsa-tracker-db \
-  deploy/apps/dsa-tracker/overlays/prod/sealedsecret.yaml \
+scripts/secrets/rotate-generic-secret.sh apps-prod cortex-db \
+  deploy/apps/cortex/overlays/prod/sealedsecret.yaml \
   postgres-password=<new-password>
 
 scripts/secrets/rotate-keycloak-github-oauth.sh <github-client-id> <github-client-secret>
@@ -233,7 +233,7 @@ spec:
     some-key: Ag...
 ```
 
-Example from `dsa-tracker`:
+Example from `cortex`:
 
 ```yaml
 spec:
@@ -267,7 +267,7 @@ Example:
 
 ```bash
 ssh root@192.168.15.2 \
-  "kubectl get secret dsa-tracker-db -n apps-prod -o jsonpath='{.data.postgres-password}'" | \
+  "kubectl get secret cortex-db -n apps-prod -o jsonpath='{.data.postgres-password}'" | \
 base64 -d
 ```
 
@@ -338,7 +338,6 @@ For the common workflows, use the scripts under `scripts/secrets/`:
 - `scripts/secrets/read-secret-value.sh <namespace> <secret-name> <key>` decodes a live runtime secret value
 - `scripts/secrets/read-keycloak-admin-credentials.sh` prints the live Keycloak admin username and password
 - `scripts/secrets/read-keycloak-db-password.sh` prints the live Keycloak database password
-- `scripts/secrets/read-dsa-tracker-db-password.sh` prints the live DSA Tracker database password
 
 These read scripts are intended for use on the Kubernetes controller or any machine with working `kubectl` access to the cluster.
 

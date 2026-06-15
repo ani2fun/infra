@@ -11,8 +11,8 @@ in Git no longer match.
 Three SealedSecrets are currently committed to Git and depend on the live
 controller key:
 
-- `deploy/apps/dsa-tracker/overlays/prod/sealedsecret.yaml`
-- `deploy/apps/dsa-tracker/overlays/dev/sealedsecret.yaml`
+- `deploy/apps/cortex/overlays/prod/sealedsecret.yaml` (`cortex-db`)
+- `deploy/apps/cortex-tutor/overlays/prod/sealedsecret.yaml` (`cortex-tutor-secrets`)
 - `deploy/apps/keycloak/overlays/prod/github-oauth-sealedsecret.yaml`
 
 If the master key is unrecoverable, every plaintext value behind those
@@ -101,8 +101,11 @@ If you have neither the live cluster nor a backup of the master key:
   `kubectl create secret`.
 - `keycloak-github-oauth` -- regenerate the GitHub OAuth client secret;
   reseal via `scripts/secrets/rotate-keycloak-github-oauth.sh`.
-- `dsa-tracker-db` -- choose a new password; update the postgres role and
+- `cortex-db` -- choose a new password; update the postgres role and
   reseal with `scripts/secrets/rotate-generic-secret.sh`.
+- `cortex-tutor-secrets` -- regenerate the `mcp-service-token` and
+  `anthropic-api-key`; reseal with
+  `scripts/secrets/seal-cortex-tutor-secrets.sh`.
 - `whoami-oauth2-proxy` -- regenerate Keycloak client secret + cookie
   secret; reseal with `scripts/secrets/seal-whoami-oauth2-proxy.sh`.
 
