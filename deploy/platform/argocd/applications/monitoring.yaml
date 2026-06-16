@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: monitoring
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/ani2fun/infra.git
+    targetRevision: main
+    path: deploy/apps/monitoring/overlays/prod
+  destination:
+    server: https://kubernetes.default.svc
+    # The Namespace object is in the kustomize base (namespace.yaml), so no
+    # CreateNamespace=true syncOption is needed — Argo applies it first.
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

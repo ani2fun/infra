@@ -1,0 +1,20 @@
+# Metrics TSDB storage. local-path is node-local and NOT replicated, so this PVC
+# binds to whichever node the vmsingle pod schedules on — the Deployment pins
+# that node by hostname (see vmsingle-deployment.yaml) so the data location is
+# deterministic and survives reschedules. 20Gi @ 30d retention is generous for
+# this small cluster's scrape set (node-exporter + KSM + cAdvisor + a few app
+# /metrics); leaves headroom for cardinality growth.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: vmsingle-data
+  labels:
+    app.kubernetes.io/name: vmsingle
+    app.kubernetes.io/part-of: monitoring
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 20Gi

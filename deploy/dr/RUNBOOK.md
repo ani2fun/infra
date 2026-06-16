@@ -354,6 +354,7 @@ ssh root@ms-1 'kubectl apply -f' deploy/platform/argocd/applications/cortex.yaml
 ssh root@ms-1 'kubectl apply -f' deploy/platform/argocd/applications/cortex-tutor.yaml
 ssh root@ms-1 'kubectl apply -f' deploy/platform/argocd/applications/go-judge.yaml
 ssh root@ms-1 'kubectl apply -f' deploy/platform/argocd/applications/likec4.yaml
+ssh root@ms-1 'kubectl apply -f' deploy/platform/argocd/applications/monitoring.yaml   # Grafana stays down until its secrets are sealed in L11
 ```
 
 (or `kubectl apply -f deploy/platform/argocd/applications/` — skips the `inactive/` subdir)
@@ -368,7 +369,9 @@ controller key restored in L4.
 
 Note that the apps Argo CD just synced will be in a partial state until
 L8 brings up postgres -- backends that need a DB connection will be
-CrashLoopBackOff. That is expected.
+CrashLoopBackOff. That is expected. The `monitoring` Grafana likewise
+stays down until L11 seals its OAuth/admin secrets (it does not depend on
+postgres).
 
 ---
 
@@ -477,6 +480,67 @@ If you want the OIDC-protected variant, follow the activation steps in
 4. `kubectl apply -k deploy/apps/whoami/overlays/prod/`.
 
 **Gate:** [L10-A, L10-B](gates.md#l10----apps-and-public-reachability)
+
+---
+
+## Layer 11 -- Monitoring (metrics)
+
+**Goal.** The `monitoring` Argo Application is Synced + Healthy: vmsingle on
+wk-1 with a bound PVC, vmagent targets up, Grafana reachable at
+`grafana.kakde.eu` and gated by GitHub OAuth (login locked to `ani2fun`).
+
+The Application was applied in L7.3, so the metrics components (vmsingle,
+vmagent, node-exporter, kube-state-metrics) are already running. Grafana stays
+down until its two SealedSecrets carry real values — do that here.
+
+### L11.1 Pre-step: headroom + DNS
+
+```bash
+ssh ms-1 'kubectl top nodes'
+ssh wk-1 'free -h && df -h /var/lib/rancher/k3s/storage'
+```
+
+vmsingle is pinned to wk-1; if it's tight, change the `nodeSelector` in
+`deploy/apps/monitoring/base/vmsingle-deployment.yaml` to `wk-2`. Confirm
+`grafana.kakde.eu` resolves to `84.247.143.66` (add the Cloudflare A record if
+missing).
+
+### L11.2 Create the GitHub OAuth App
+
+github.com -> Settings -> Developer settings -> OAuth Apps -> New:
+
+- Homepage URL: `https://grafana.kakde.eu`
+- Authorization callback URL: `https://grafana.kakde.eu/login/github`
+
+Copy the Client ID and generate a Client secret.
+
+### L11.3 Seal the two secrets
+
+```bash
+ssh ms-1 "kubectl get secret -n kube-system \
+  -l sealedsecrets.bitnami.com/sealed-secrets-key=active \
+  -o jsonpath='{.items[0].data.tls\.crt}' | base64 -d" > /tmp/ss-cert.pem
+
+kubectl create secret generic grafana-github-oauth --namespace monitoring \
+  --from-literal=client-id='<<id>>' --from-literal=client-secret='<<secret>>' \
+  --dry-run=client -o yaml | kubeseal --cert /tmp/ss-cert.pem --format yaml \
+  > deploy/apps/monitoring/overlays/prod/grafana-github-oauth-sealedsecret.yaml
+
+kubectl create secret generic grafana-admin --namespace monitoring \
+  --from-literal=admin-user='admin' --from-literal=admin-password='<<strong>>' \
+  --dry-run=client -o yaml | kubeseal --cert /tmp/ss-cert.pem --format yaml \
+  > deploy/apps/monitoring/overlays/prod/grafana-admin-sealedsecret.yaml
+```
+
+Commit + push the two resealed files; Argo CD syncs them and the controller
+decrypts them into runtime Secrets, after which Grafana starts.
+
+(If the sealed-secrets master key was restored at L4 and these files already
+held real blobs, this step is a no-op — Grafana comes up on its own.)
+
+**See:** [`../apps/monitoring/README.md`](../apps/monitoring/README.md)
+
+**Gate:** [L11-A … L11-E](gates.md#l11----monitoring)
 
 ---
 

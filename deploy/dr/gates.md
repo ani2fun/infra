@@ -51,7 +51,7 @@ ssh vm-1 'for p in 51820 51821 51822; do timeout 2 nc -uvz 82.123.119.181 $p 2>&
 **L1-B** Cloudflare A records resolve to the edge IP.
 
 ```bash
-for h in kakde.eu dev.codefolio.kakde.eu cortex.kakde.eu argocd.kakde.eu keycloak.kakde.eu whoami.kakde.eu; do
+for h in kakde.eu dev.codefolio.kakde.eu cortex.kakde.eu argocd.kakde.eu keycloak.kakde.eu grafana.kakde.eu whoami.kakde.eu; do
   echo "$h -> $(dig +short $h @1.1.1.1)"
 done
 # expected: every record returns 84.247.143.66
@@ -183,8 +183,9 @@ ssh ms-1 'kubectl -n argocd get pods'
 
 ```bash
 ssh ms-1 'kubectl -n argocd get application -o wide'
-# expected: 5 rows (codefolio, cortex, cortex-tutor, go-judge, likec4)
-# all Synced + Healthy
+# expected: 6 rows (codefolio, cortex, cortex-tutor, go-judge, likec4, monitoring)
+# all Synced + Healthy -- EXCEPT monitoring may be Progressing/Degraded until
+# L11 seals its Grafana secrets (its metrics components come up Healthy on their own)
 ```
 
 **L7-C** Argo CD UI reachable.
@@ -249,7 +250,7 @@ ssh ms-1 'scripts/dr/backup-keycloak-realm.sh /tmp'
 
 ```bash
 for h in kakde.eu dev.codefolio.kakde.eu cortex.kakde.eu \
-         argocd.kakde.eu keycloak.kakde.eu whoami.kakde.eu; do
+         argocd.kakde.eu keycloak.kakde.eu grafana.kakde.eu whoami.kakde.eu; do
   printf "%-32s " "$h"
   curl -sI "https://$h/" -o /dev/null -w "%{http_code}\n" || echo "FAIL"
 done
@@ -261,6 +262,50 @@ done
 ```bash
 curl -sI https://whoami-auth.kakde.eu | head -1
 # expected: HTTP/2 302 (redirect to Keycloak login)
+```
+
+## L11 -- Monitoring
+
+**L11-A** The monitoring Application is Synced + Healthy.
+
+```bash
+ssh ms-1 'kubectl -n argocd get application monitoring -o wide'
+# expected: Synced + Healthy
+```
+
+**L11-B** vmsingle runs on wk-1 with a bound PVC.
+
+```bash
+ssh ms-1 'kubectl -n monitoring get pod -l app.kubernetes.io/name=vmsingle -o wide'
+# expected: 1 pod Running on wk-1
+ssh ms-1 'kubectl -n monitoring get pvc vmsingle-data'
+# expected: STATUS=Bound
+```
+
+**L11-C** node-exporter covers all four nodes; vmagent targets are up.
+
+```bash
+ssh ms-1 'kubectl -n monitoring get ds node-exporter'
+# expected: DESIRED=4 READY=4 (one per node, incl. ms-1 and vm-1)
+ssh ms-1 'kubectl -n monitoring port-forward deploy/vmagent 8429:8429 >/dev/null 2>&1 &
+  sleep 2; curl -s http://localhost:8429/api/v1/targets | grep -o "\"health\":\"[a-z]*\"" | sort | uniq -c; kill %1'
+# expected: targets reporting "up" (investigate any "down")
+```
+
+**L11-D** vmsingle is receiving samples (remote_write path works).
+
+```bash
+ssh ms-1 'kubectl -n monitoring port-forward svc/vmsingle 8428:8428 >/dev/null 2>&1 &
+  sleep 2; curl -s "http://localhost:8428/api/v1/query?query=count(up)"; echo; kill %1'
+# expected: a data result with value > 0
+```
+
+**L11-E** Grafana answers publicly and enforces the GitHub OAuth lock.
+
+```bash
+curl -sI https://grafana.kakde.eu/ -o /dev/null -w "%{http_code}\n"
+# expected: 302 (redirect to GitHub login) or 200
+# manual: signing in with a GitHub account other than ani2fun must be REJECTED
 ```
 
 ## End-to-end gate

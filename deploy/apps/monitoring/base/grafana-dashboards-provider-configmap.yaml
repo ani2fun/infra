@@ -1,0 +1,24 @@
+# Dashboard provisioning provider: load any *.json dashboard found under
+# /var/lib/grafana/dashboards (mounted from grafana-dashboards ConfigMap).
+# Community dashboards (Node Exporter Full 1860, K8s views 15757, VictoriaMetrics
+# 10229) are imported via the UI for now — see deploy/apps/monitoring/README.md.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards-provider
+  labels:
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: monitoring
+data:
+  dashboards.yaml: |
+    apiVersion: 1
+    providers:
+      - name: homelab
+        orgId: 1
+        type: file
+        disableDeletion: false
+        allowUiUpdates: true
+        updateIntervalSeconds: 30
+        options:
+          path: /var/lib/grafana/dashboards
+          foldersFromFilesStructure: false

@@ -35,7 +35,7 @@ A fresh Ubuntu 24.04.4 LTS installer image for each node.
 | File | Purpose |
 |---|---|
 | [`README.md`](README.md) | This index. |
-| [`RUNBOOK.md`](RUNBOOK.md) | Step-by-step rebuild from cold OS. Layers L0–L10. |
+| [`RUNBOOK.md`](RUNBOOK.md) | Step-by-step rebuild from cold OS. Layers L0–L11. |
 | [`SNAPSHOT.md`](SNAPSHOT.md) | Frozen state on the day this pack was authored. Versions, image digests, host facts, Argo CD revisions. |
 | [`gates.md`](gates.md) | Verification commands referenced by ID from the runbook. |
 | [`secret-recovery.md`](secret-recovery.md) | Per-secret decision tree: where the plaintext comes from on rebuild day. |
@@ -59,6 +59,7 @@ Companion scripts under `scripts/dr/` and `scripts/secrets/`.
 | L8 | PostgreSQL StatefulSet + DB restore | [`platform/postgresql/README.md`](../platform/postgresql/README.md) | `scripts/dr/postgres-*.sh` |
 | L9 | Keycloak + realm restore | [`apps/keycloak/README.md`](../apps/keycloak/README.md) | `keycloak-realm-export.md` |
 | L10 | Whoami test app (and oauth2-proxy template if you want it) | [`apps/whoami/README.md`](../apps/whoami/README.md) | `RUNBOOK.md §L10` |
+| L11 | Monitoring (metrics): VictoriaMetrics + Grafana | [`apps/monitoring/README.md`](../apps/monitoring/README.md) | `RUNBOOK.md §L11`, `gates.md§L11` |
 
 ## What this pack cannot restore automatically
 

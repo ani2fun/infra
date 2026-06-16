@@ -23,6 +23,7 @@ network:
       - dev.codefolio.kakde.eu
       - argocd.kakde.eu
       - keycloak.kakde.eu
+      - grafana.kakde.eu
       - whoami.kakde.eu
       - whoami-auth.kakde.eu
   postgres:

@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: vmsingle
+  labels:
+    app.kubernetes.io/name: vmsingle
+    app.kubernetes.io/component: tsdb
+    app.kubernetes.io/part-of: monitoring
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: vmsingle
+    app.kubernetes.io/component: tsdb
+  ports:
+    - name: http
+      port: 8428
+      targetPort: 8428
+      protocol: TCP

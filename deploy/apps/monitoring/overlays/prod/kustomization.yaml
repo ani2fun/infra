@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: monitoring
+resources:
+  - ../../base
+  - ingress.yaml
+  - grafana-admin-sealedsecret.yaml
+  - grafana-github-oauth-sealedsecret.yaml
+# Third-party image versions are pinned here (no CI promotion like the
+# first-party apps). Bump to the current stable release when upgrading.
+images:
+  - name: victoriametrics/victoria-metrics
+    newTag: v1.144.0
+  - name: victoriametrics/vmagent
+    newTag: v1.144.0
+  - name: prom/node-exporter
+    newTag: v1.11.1
+  - name: registry.k8s.io/kube-state-metrics/kube-state-metrics
+    newTag: v2.19.1
+  - name: grafana/grafana
+    newTag: "13.0.2"

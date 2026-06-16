@@ -1,0 +1,20 @@
+# Only the resource-metrics port (8080) is exposed, so vmagent's endpoints SD
+# job scrapes object metrics and not KSM's own telemetry (8081).
+apiVersion: v1
+kind: Service
+metadata:
+  name: kube-state-metrics
+  labels:
+    app.kubernetes.io/name: kube-state-metrics
+    app.kubernetes.io/component: exporter
+    app.kubernetes.io/part-of: monitoring
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: kube-state-metrics
+    app.kubernetes.io/component: exporter
+  ports:
+    - name: http-metrics
+      port: 8080
+      targetPort: 8080
+      protocol: TCP

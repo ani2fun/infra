@@ -1,0 +1,82 @@
+# node-exporter: host-level metrics (CPU, memory, disk, filesystem, network) for
+# EVERY node. It tolerates all taints so it also lands on the control-plane
+# (ms-1, master taint) and the public edge (vm-1, kakde.eu/edge taint) — it's
+# read-only host telemetry, safe to run anywhere. hostNetwork + hostPID let it
+# see the host's network stack and processes.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: node-exporter
+  labels:
+    app.kubernetes.io/name: node-exporter
+    app.kubernetes.io/component: exporter
+    app.kubernetes.io/part-of: monitoring
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: node-exporter
+      app.kubernetes.io/component: exporter
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: node-exporter
+        app.kubernetes.io/component: exporter
+        app.kubernetes.io/part-of: monitoring
+    spec:
+      hostNetwork: true
+      hostPID: true
+      # Full node coverage: tolerate EVERY taint (control-plane + edge + future).
+      tolerations:
+        - operator: Exists
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: node-exporter
+          image: prom/node-exporter:v1.11.1
+          imagePullPolicy: IfNotPresent
+          args:
+            - --path.rootfs=/host/root
+            - --path.procfs=/host/proc
+            - --path.sysfs=/host/sys
+            - --web.listen-address=:9100
+            # Don't scrape virtual/ephemeral filesystems.
+            - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|var/lib/docker/.+|var/lib/kubelet/.+)($|/)
+          ports:
+            - name: metrics
+              containerPort: 9100
+          resources:
+            requests:
+              cpu: 25m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+          volumeMounts:
+            - name: proc
+              mountPath: /host/proc
+              readOnly: true
+            - name: sys
+              mountPath: /host/sys
+              readOnly: true
+            - name: root
+              mountPath: /host/root
+              mountPropagation: HostToContainer
+              readOnly: true
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+      volumes:
+        - name: proc
+          hostPath:
+            path: /proc
+        - name: sys
+          hostPath:
+            path: /sys
+        - name: root
+          hostPath:
+            path: /

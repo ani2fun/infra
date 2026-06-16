@@ -1,0 +1,29 @@
+# Public entry for Grafana via the edge Traefik, same pattern as cortex/keycloak.
+# Auth is handled INSIDE Grafana (GitHub OAuth locked to ani2fun) — no Traefik
+# auth middleware. The router.tls annotation is mandatory or Traefik 404s HTTPS.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: grafana
+  annotations:
+    kubernetes.io/ingress.class: traefik
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    cert-manager.io/cluster-issuer: letsencrypt-prod-dns01
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - grafana.kakde.eu
+      secretName: grafana-kakde-eu-tls
+  rules:
+    - host: grafana.kakde.eu
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: grafana
+                port:
+                  number: 80

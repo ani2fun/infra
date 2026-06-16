@@ -38,5 +38,8 @@ namespaces:
     labels:
       kakde.eu/postgresql-access: "true"
 
+  - name: monitoring
+    purpose: observability stack (VictoriaMetrics, vmagent, node-exporter, kube-state-metrics, Grafana)
+
   - name: nettest
     purpose: network testing namespace

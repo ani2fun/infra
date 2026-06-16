@@ -1,0 +1,22 @@
+# Provisioned datasource: vmsingle speaks the Prometheus query API, so Grafana
+# treats it as type "prometheus". The fixed uid lets in-repo dashboards
+# reference it deterministically.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasources
+  labels:
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: monitoring
+data:
+  datasources.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: VictoriaMetrics
+        uid: victoriametrics
+        type: prometheus
+        access: proxy
+        url: http://vmsingle.monitoring.svc.cluster.local:8428
+        isDefault: true
+        jsonData:
+          timeInterval: 30s

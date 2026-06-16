@@ -13,6 +13,8 @@ day, how to apply it, and what breaks if it's lost.
 | `keycloak-db-secret` | `identity` | Password manager (must match `pg_authid`) | `kubectl create secret` | Keycloak can't connect to its DB; rotate role + secret together |
 | `keycloak-github-oauth` | `identity` | Sealed-secrets restore (preferred) or rotate at github.com | sealed-secrets controller, or `scripts/secrets/rotate-keycloak-github-oauth.sh` | GitHub login broker fails; users can still use direct Keycloak accounts |
 | `cortex-db` | `apps-prod` | Sealed-secrets restore (preferred) or postgres password rotation | sealed-secrets controller, or `scripts/secrets/rotate-generic-secret.sh` | cortex / cortex-tutor can't reach postgres |
+| `grafana-github-oauth` | `monitoring` | Sealed-secrets restore (preferred) or recreate the GitHub OAuth App | sealed-secrets controller, or reseal with `kubeseal` | Grafana GitHub login fails; recover via the break-glass local admin |
+| `grafana-admin` | `monitoring` | Pick fresh values (break-glass only) | sealed-secrets controller, or reseal with `kubeseal` | Lose only the local Grafana fallback login; GitHub OAuth + metrics unaffected |
 | `whoami-oauth2-proxy` | `apps` (when deployed) | Generate fresh values | `scripts/secrets/seal-whoami-oauth2-proxy.sh` | whoami-auth.kakde.eu fails; whoami.kakde.eu unaffected |
 | TLS cert Secrets (`*-tls`) | various | cert-manager re-issues automatically | cert-manager | Brief unavailability while DNS-01 challenge completes |
 | WireGuard private keys | each node `/etc/wireguard/wg0.key` | Password manager (4 entries) or generate fresh | `scp` + `wg-quick down/up wg0` | Mesh fails; cluster API unreachable; rebuild from L2 |
@@ -185,6 +187,60 @@ cortex-tutor backends (env `secretKeyRef` name `cortex-db`, key
        deploy/apps/cortex/overlays/prod/sealedsecret.yaml \
        postgres-password='<<NEW>>'
      ```
+
+---
+
+### `grafana-github-oauth` (monitoring)
+
+**Why it's needed.** GitHub OAuth App client id + secret (keys `client-id`,
+`client-secret`). Grafana uses them to authenticate the admin via GitHub.
+Committed to Git as a SealedSecret at
+`deploy/apps/monitoring/overlays/prod/grafana-github-oauth-sealedsecret.yaml`.
+
+**Source on rebuild.**
+
+- **If sealed-secrets master key was restored:** automatic when the SealedSecret
+  is applied/synced. Nothing more to do.
+- **If the master key is unrecoverable:**
+  1. github.com → Settings → Developer settings → OAuth Apps → the
+     "Grafana grafana.kakde.eu" app (or create a new one — homepage
+     `https://grafana.kakde.eu`, callback `https://grafana.kakde.eu/login/github`).
+  2. Generate a new client secret; copy the client id + secret.
+  3. Reseal against the active controller cert:
+
+     ```bash
+     kubectl create secret generic grafana-github-oauth --namespace monitoring \
+       --from-literal=client-id='<<id>>' --from-literal=client-secret='<<secret>>' \
+       --dry-run=client -o yaml \
+     | kubeseal --cert /tmp/ss-cert.pem --format yaml \
+       > deploy/apps/monitoring/overlays/prod/grafana-github-oauth-sealedsecret.yaml
+     ```
+
+**While it's broken:** log in with the break-glass local admin via
+`kubectl -n monitoring port-forward svc/grafana 3000:80`.
+
+---
+
+### `grafana-admin` (monitoring)
+
+**Why it's needed.** Break-glass local Grafana login (keys `admin-user`,
+`admin-password`). GitHub OAuth is the primary path; this is the fallback if
+OAuth is misconfigured. SealedSecret at
+`deploy/apps/monitoring/overlays/prod/grafana-admin-sealedsecret.yaml`.
+
+**Source on rebuild.** Lowest-stakes secret in the repo — pick any fresh strong
+password; no data depends on it. Reseal:
+
+```bash
+kubectl create secret generic grafana-admin --namespace monitoring \
+  --from-literal=admin-user='admin' --from-literal=admin-password='<<strong>>' \
+  --dry-run=client -o yaml \
+| kubeseal --cert /tmp/ss-cert.pem --format yaml \
+  > deploy/apps/monitoring/overlays/prod/grafana-admin-sealedsecret.yaml
+```
+
+**If lost.** Reseal a new password and resync. No metrics or dashboards are lost
+(dashboards are provisioned from Git; metrics live in the vmsingle PVC).
 
 ---
 

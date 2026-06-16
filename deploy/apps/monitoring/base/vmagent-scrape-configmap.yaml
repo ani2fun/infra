@@ -1,0 +1,107 @@
+# vmagent scrape config (Prometheus scrape_configs format, consumed via
+# -promscrape.config). Five jobs cover the cluster end to end:
+#   1+2  kubelet + cAdvisor  -> node + per-container CPU/mem/net/fs
+#   3    node-exporter       -> host metrics (all 4 nodes)
+#   4    kube-state-metrics  -> k8s object state (deployments, pods, pvc, ...)
+#   5    annotated-pods      -> any pod with prometheus.io/scrape: "true"
+#                              (this is the hook for app /metrics later — e.g.
+#                               cortex — with NO change to this file).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vmagent-scrape
+  labels:
+    app.kubernetes.io/name: vmagent
+    app.kubernetes.io/part-of: monitoring
+data:
+  scrape.yml: |
+    global:
+      scrape_interval: 30s
+      external_labels:
+        cluster: homelab
+
+    scrape_configs:
+      # 1) Kubelet itself (node-level: pod counts, volume stats, runtime).
+      - job_name: kubelet
+        scheme: https
+        kubernetes_sd_configs:
+          - role: node
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+          # K3s kubelet serving cert is not signed by the cluster CA; skip verify
+          # (scrape goes through the API server proxy, which is itself trusted).
+          insecure_skip_verify: true
+        relabel_configs:
+          - target_label: __address__
+            replacement: kubernetes.default.svc:443
+          - source_labels: [__meta_kubernetes_node_name]
+            regex: (.+)
+            target_label: __metrics_path__
+            replacement: /api/v1/nodes/${1}/proxy/metrics
+
+      # 2) Kubelet cAdvisor — per-container CPU/mem/net/fs.
+      - job_name: kubelet-cadvisor
+        scheme: https
+        kubernetes_sd_configs:
+          - role: node
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+          insecure_skip_verify: true
+        relabel_configs:
+          - target_label: __address__
+            replacement: kubernetes.default.svc:443
+          - source_labels: [__meta_kubernetes_node_name]
+            regex: (.+)
+            target_label: __metrics_path__
+            replacement: /api/v1/nodes/${1}/proxy/metrics/cadvisor
+
+      # 3) node-exporter — host metrics. endpoints role over the headless Service.
+      - job_name: node-exporter
+        kubernetes_sd_configs:
+          - role: endpoints
+            namespaces:
+              names: [monitoring]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_label_app_kubernetes_io_name]
+            regex: node-exporter
+            action: keep
+          - source_labels: [__meta_kubernetes_endpoint_node_name]
+            target_label: node
+
+      # 4) kube-state-metrics — k8s object state.
+      - job_name: kube-state-metrics
+        kubernetes_sd_configs:
+          - role: endpoints
+            namespaces:
+              names: [monitoring]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_label_app_kubernetes_io_name]
+            regex: kube-state-metrics
+            action: keep
+
+      # 5) Annotation-based pod scraping. Apps opt in with pod annotations:
+      #      prometheus.io/scrape: "true"
+      #      prometheus.io/port:   "<metrics-port>"
+      #      prometheus.io/path:   "/metrics"   (optional, defaults to /metrics)
+      - job_name: annotated-pods
+        kubernetes_sd_configs:
+          - role: pod
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+            action: keep
+            regex: "true"
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+            action: replace
+            target_label: __metrics_path__
+            regex: (.+)
+          - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+            action: replace
+            regex: ([^:]+)(?::\d+)?;(\d+)
+            replacement: $1:$2
+            target_label: __address__
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod

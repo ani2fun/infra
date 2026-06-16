@@ -1,0 +1,54 @@
+# vmagent discovers scrape targets via the Kubernetes API (kubernetes_sd_configs),
+# so it needs read access to nodes (+ the kubelet proxy subresource for cAdvisor),
+# services, endpoints, and pods. Read-only; no write verbs.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: vmagent
+  labels:
+    app.kubernetes.io/name: vmagent
+    app.kubernetes.io/part-of: monitoring
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: vmagent
+  labels:
+    app.kubernetes.io/name: vmagent
+    app.kubernetes.io/part-of: monitoring
+rules:
+  - apiGroups: [""]
+    resources:
+      - nodes
+      - nodes/proxy
+      - nodes/metrics
+      - services
+      - endpoints
+      - pods
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["discovery.k8s.io"]
+    resources:
+      - endpointslices
+    verbs: ["get", "list", "watch"]
+  # Scrape the kubelet/cAdvisor metrics exposed through the API server proxy and
+  # the API server's own /metrics.
+  - nonResourceURLs:
+      - /metrics
+      - /metrics/cadvisor
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: vmagent
+  labels:
+    app.kubernetes.io/name: vmagent
+    app.kubernetes.io/part-of: monitoring
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: vmagent
+subjects:
+  - kind: ServiceAccount
+    name: vmagent
+    namespace: monitoring

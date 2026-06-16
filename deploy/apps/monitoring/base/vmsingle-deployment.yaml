@@ -1,0 +1,86 @@
+# VictoriaMetrics single-node: the metrics store. Drop-in Prometheus-compatible
+# query API (Grafana talks to it as a "prometheus" datasource) at ~5-10x lower
+# RAM/disk than Prometheus. vmagent remote-writes scraped samples here.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vmsingle
+  labels:
+    app.kubernetes.io/name: vmsingle
+    app.kubernetes.io/component: tsdb
+    app.kubernetes.io/part-of: monitoring
+spec:
+  replicas: 1
+  # Recreate (not RollingUpdate): local-path RWO can be mounted by exactly one
+  # pod, so the old pod must release the PVC before the new one mounts it.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: vmsingle
+      app.kubernetes.io/component: tsdb
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: vmsingle
+        app.kubernetes.io/component: tsdb
+        app.kubernetes.io/part-of: monitoring
+    spec:
+      # Pin to wk-1 so the local-path PVC has a deterministic, documented home
+      # (same rationale as deploy/apps/go-judge: wk-1 has the RAM headroom).
+      # If wk-1 is tight at deploy time (check `kubectl top nodes` first), change
+      # this one line to wk-2. No priorityClassName: monitoring runs at the
+      # implicit default tier (0) like the apps, so it can never preempt
+      # PostgreSQL (data-tier) and is shed after go-judge under node pressure.
+      nodeSelector:
+        kubernetes.io/hostname: wk-1
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: vmsingle
+          image: victoriametrics/victoria-metrics:v1.144.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - -storageDataPath=/victoria-metrics-data
+            - -retentionPeriod=30d
+            - -httpListenAddr=:8428
+            # Tolerate the 30s scrape interval when de-duplicating samples.
+            - -dedup.minScrapeInterval=30s
+          ports:
+            - name: http
+              containerPort: 8428
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8428
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8428
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 768Mi
+          volumeMounts:
+            - name: data
+              mountPath: /victoria-metrics-data
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: vmsingle-data

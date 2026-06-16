@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+  labels:
+    app.kubernetes.io/part-of: monitoring
+    # Observability stack: VictoriaMetrics (metrics store) + vmagent (scraper) +
+    # node-exporter + kube-state-metrics + Grafana. Argo-synced; see
+    # deploy/platform/argocd/applications/monitoring.yaml.

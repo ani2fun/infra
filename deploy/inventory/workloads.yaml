@@ -165,3 +165,71 @@ workloads:
     pinned_node_label:
       workload: argocd
     internal_tls_disabled: true
+
+  # --- Observability stack (monitoring namespace, Argo-synced, metrics-only) ---
+  - name: vmsingle
+    namespace: monitoring
+    kind: Deployment
+    managed_by: argocd
+    source_path: deploy/apps/monitoring/overlays/prod
+    image: victoriametrics/victoria-metrics:v1.144.0
+    replicas: 1
+    pinned_node: wk-1   # local-path PVC is node-local; pinned by hostname
+    pvc:
+      storage_class: local-path
+      size: 20Gi
+      retention: 30d
+    service:
+      name: vmsingle
+      port: 8428
+      target_port: 8428
+
+  - name: vmagent
+    namespace: monitoring
+    kind: Deployment
+    managed_by: argocd
+    source_path: deploy/apps/monitoring/overlays/prod
+    image: victoriametrics/vmagent:v1.144.0
+    replicas: 1
+    remote_write: http://vmsingle.monitoring.svc.cluster.local:8428/api/v1/write
+
+  - name: node-exporter
+    namespace: monitoring
+    kind: DaemonSet
+    managed_by: argocd
+    source_path: deploy/apps/monitoring/overlays/prod
+    image: prom/node-exporter:v1.11.1
+    notes: runs on all 4 nodes (tolerates control-plane + edge taints); hostNetwork :9100
+
+  - name: kube-state-metrics
+    namespace: monitoring
+    kind: Deployment
+    managed_by: argocd
+    source_path: deploy/apps/monitoring/overlays/prod
+    image: registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.19.1
+    replicas: 1
+    service:
+      name: kube-state-metrics
+      port: 8080
+      target_port: 8080
+
+  - name: grafana
+    namespace: monitoring
+    kind: Deployment
+    managed_by: argocd
+    source_path: deploy/apps/monitoring/overlays/prod
+    image: grafana/grafana:13.0.2
+    replicas: 1
+    persistence: ephemeral   # emptyDir; datasource + dashboards provisioned from Git
+    service:
+      name: grafana
+      port: 80
+      target_port: 3000
+    ingress:
+      host: grafana.kakde.eu
+      tls_secret: grafana-kakde-eu-tls
+      cluster_issuer: letsencrypt-prod-dns01
+    auth: github-oauth (locked to GitHub user ani2fun via role_attribute_path + strict mode)
+    secrets:
+      - grafana-github-oauth   # SealedSecret at deploy/apps/monitoring/overlays/prod/grafana-github-oauth-sealedsecret.yaml
+      - grafana-admin          # SealedSecret (break-glass local login)
