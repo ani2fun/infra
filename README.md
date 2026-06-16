@@ -14,8 +14,11 @@ to rebuild the cluster from cold metal.
 - [`deploy/apps/`](deploy/apps/) -- application manifests. Argo CD syncs
   `codefolio`, `cortex` (the Scala app), `cortex-tutor` (the Socratic AI
   coach, internal ClusterIP while WIP), `go-judge` (the shared code-exec
-  sandbox) and `likec4` (the system-design diagram SPA); `keycloak` and
-  `whoami` are applied manually with `kubectl apply -k`. Also holds the
+  sandbox), `likec4` (the system-design diagram SPA), and `monitoring`
+  (the VictoriaMetrics + Grafana observability stack in the `monitoring`
+  namespace; Grafana at `grafana.kakde.eu`, GitHub-OAuth-locked to one
+  admin); `keycloak` and `whoami` are applied manually with
+  `kubectl apply -k`. Also holds the
   `dummy-app-template` reference. The operator-facing runbooks for the
   Cortex stack (deploy, rollback, secrets, scaling, DR, incidents) live in
   the Cortex book at
