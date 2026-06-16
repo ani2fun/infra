@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: vlsingle
+  labels:
+    app.kubernetes.io/name: vlsingle
+    app.kubernetes.io/component: logs-store
+    app.kubernetes.io/part-of: monitoring
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: vlsingle
+    app.kubernetes.io/component: logs-store
+  ports:
+    - name: http
+      port: 9428
+      targetPort: 9428
+      protocol: TCP

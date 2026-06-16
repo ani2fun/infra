@@ -19,3 +19,7 @@ images:
     newTag: v2.19.1
   - name: grafana/grafana
     newTag: "13.0.2"
+  - name: victoriametrics/victoria-logs
+    newTag: v1.50.0
+  - name: timberio/vector
+    newTag: 0.56.0-distroless-libc

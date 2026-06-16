@@ -1,0 +1,17 @@
+# Log storage. Like the metrics TSDB, local-path is node-local and unreplicated,
+# so the vlsingle Deployment pins its node by hostname. 20Gi @ 30d is generous —
+# VictoriaLogs compresses heavily, and a handful of homelab apps log modestly.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: vlsingle-data
+  labels:
+    app.kubernetes.io/name: vlsingle
+    app.kubernetes.io/part-of: monitoring
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 20Gi

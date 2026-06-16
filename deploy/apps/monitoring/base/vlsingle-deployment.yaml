@@ -1,0 +1,80 @@
+# VictoriaLogs single-node: the log store (VictoriaMetrics' logs sibling).
+# Vector ships pod logs here; Grafana queries it via the VictoriaLogs datasource.
+# Same frugal, pin-to-wk-1, Recreate-on-RWO pattern as vmsingle.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vlsingle
+  labels:
+    app.kubernetes.io/name: vlsingle
+    app.kubernetes.io/component: logs-store
+    app.kubernetes.io/part-of: monitoring
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: vlsingle
+      app.kubernetes.io/component: logs-store
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: vlsingle
+        app.kubernetes.io/component: logs-store
+        app.kubernetes.io/part-of: monitoring
+      annotations:
+        # Self-monitoring: vmagent scrapes VictoriaLogs' own /metrics.
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9428"
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: wk-1
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: victoria-logs
+          image: victoriametrics/victoria-logs:v1.50.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - -storageDataPath=/victoria-logs-data
+            - -retentionPeriod=30d
+            - -httpListenAddr=:9428
+          ports:
+            - name: http
+              containerPort: 9428
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 9428
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 9428
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+            - name: data
+              mountPath: /victoria-logs-data
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: vlsingle-data

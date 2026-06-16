@@ -17,6 +17,13 @@ resources:
   - kube-state-metrics-rbac.yaml
   - kube-state-metrics-deployment.yaml
   - kube-state-metrics-service.yaml
+  # Logs: VictoriaLogs store + Vector collector (DaemonSet).
+  - vlsingle-pvc.yaml
+  - vlsingle-deployment.yaml
+  - vlsingle-service.yaml
+  - vector-rbac.yaml
+  - vector-configmap.yaml
+  - vector-daemonset.yaml
   # Grafana + provisioning.
   - grafana-datasource-configmap.yaml
   - grafana-dashboards-provider-configmap.yaml

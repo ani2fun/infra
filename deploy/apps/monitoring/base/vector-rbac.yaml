@@ -1,0 +1,40 @@
+# Vector's kubernetes_logs source enriches each log line with pod metadata, so it
+# needs read access to pods and namespaces across the cluster. Read-only.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: vector
+  labels:
+    app.kubernetes.io/name: vector
+    app.kubernetes.io/part-of: monitoring
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: vector
+  labels:
+    app.kubernetes.io/name: vector
+    app.kubernetes.io/part-of: monitoring
+rules:
+  - apiGroups: [""]
+    resources:
+      - pods
+      - namespaces
+      - nodes
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: vector
+  labels:
+    app.kubernetes.io/name: vector
+    app.kubernetes.io/part-of: monitoring
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: vector
+subjects:
+  - kind: ServiceAccount
+    name: vector
+    namespace: monitoring

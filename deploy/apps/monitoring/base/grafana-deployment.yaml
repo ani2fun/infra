@@ -42,6 +42,11 @@ spec:
             # --- server ---
             - name: GF_SERVER_ROOT_URL
               value: https://grafana.kakde.eu
+            # Install the VictoriaLogs datasource plugin at startup (into the
+            # writable /var/lib/grafana/plugins emptyDir). Signed plugin from the
+            # Grafana catalog; needs egress on first start.
+            - name: GF_INSTALL_PLUGINS
+              value: victoriametrics-logs-datasource
             # --- local break-glass admin (sealed); GitHub OAuth is the primary path ---
             - name: GF_SECURITY_ADMIN_USER
               valueFrom:
