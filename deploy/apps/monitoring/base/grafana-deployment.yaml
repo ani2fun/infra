@@ -100,10 +100,13 @@ spec:
           resources:
             requests:
               cpu: 50m
-              memory: 128Mi
+              memory: 256Mi
             limits:
               cpu: 250m
-              memory: 256Mi
+              # Grafana 13 (built-in apiserver + bleve search index + live
+              # websocket) needs more than the 256Mi that sufficed for v11 —
+              # it was OOMKilled (exit 137) at 256Mi the moment an admin browsed.
+              memory: 512Mi
           volumeMounts:
             - name: data
               mountPath: /var/lib/grafana
