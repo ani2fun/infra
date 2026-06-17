@@ -7,7 +7,7 @@ resources:
 images:
 - name: ghcr.io/ani2fun/cortex-tutor
   newName: ghcr.io/ani2fun/cortex-tutor
-  newTag: 7d8de462a5de7fb9a4cec9636236a69adcf26320
+  newTag: 84d3b48c55f925e7443be0452214f73d74ba0195
 - name: ghcr.io/ani2fun/cortex-tutor-migrate
   newName: ghcr.io/ani2fun/cortex-tutor-migrate
-  newTag: 7d8de462a5de7fb9a4cec9636236a69adcf26320
+  newTag: 84d3b48c55f925e7443be0452214f73d74ba0195
