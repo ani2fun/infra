@@ -65,10 +65,17 @@ spec:
             # --- GitHub OAuth, locked to GitHub user ani2fun ---
             - name: GF_AUTH_GITHUB_ENABLED
               value: "true"
+            # MUST stay true: Grafana's DB is an emptyDir (wiped every restart), so
+            # the sole authorized user is re-provisioned from GitHub on each login.
+            # The single-user lock is enforced by the strict role gate below, NOT by
+            # this flag — setting it false locks ani2fun out after any pod restart.
             - name: GF_AUTH_GITHUB_ALLOW_SIGN_UP
               value: "true"
+            # read:org is required: Grafana's GitHub connector lists the user's teams
+            # during login (GET /user/teams), which 404s without it and aborts the
+            # login at the userinfo stage — before the role gate is even reached.
             - name: GF_AUTH_GITHUB_SCOPES
-              value: user:email
+              value: user:email,read:org
             - name: GF_AUTH_GITHUB_CLIENT_ID
               valueFrom:
                 secretKeyRef:

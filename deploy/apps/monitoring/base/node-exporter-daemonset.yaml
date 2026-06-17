@@ -47,6 +47,14 @@ spec:
           ports:
             - name: metrics
               containerPort: 9100
+          # node-exporter serves a 200 landing page at / (it has no /health
+          # endpoint); restart the pod if the exporter stops answering.
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 9100
+            initialDelaySeconds: 10
+            periodSeconds: 30
           resources:
             requests:
               cpu: 25m

@@ -29,6 +29,13 @@ spec:
         - name: kube-state-metrics
           image: registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.19.1
           imagePullPolicy: IfNotPresent
+          args:
+            # Explicit collector allowlist = KSM's default set minus `secrets`
+            # (least privilege; also removed from the ClusterRole) and minus the
+            # validating/mutatingwebhookconfigurations collectors, which our
+            # ClusterRole doesn't grant and which otherwise log "forbidden" every
+            # resync. Re-add a resource here AND in the ClusterRole to enable it.
+            - --resources=certificatesigningrequests,configmaps,cronjobs,daemonsets,deployments,endpointslices,horizontalpodautoscalers,ingresses,jobs,leases,limitranges,namespaces,networkpolicies,nodes,persistentvolumeclaims,persistentvolumes,poddisruptionbudgets,pods,replicasets,replicationcontrollers,resourcequotas,services,statefulsets,storageclasses,volumeattachments
           ports:
             - name: http-metrics
               containerPort: 8080

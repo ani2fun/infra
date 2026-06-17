@@ -20,7 +20,10 @@ rules:
   - apiGroups: [""]
     resources:
       - configmaps
-      - secrets
+      # secrets intentionally omitted: KSM only emits secret *metadata* metrics
+      # (which we don't use), and list/watch on secrets lets a compromised KSM
+      # token read every secret in the cluster. Also dropped from the deployment's
+      # --resources allowlist so the collector isn't requested.
       - nodes
       - pods
       - services

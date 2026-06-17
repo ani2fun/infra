@@ -50,6 +50,12 @@ spec:
               port: 8429
             initialDelaySeconds: 5
             periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8429
+            initialDelaySeconds: 15
+            periodSeconds: 30
           resources:
             requests:
               cpu: 50m
@@ -73,4 +79,7 @@ spec:
           configMap:
             name: vmagent-scrape
         - name: tmpdata
-          emptyDir: {}
+          # Bound the remote-write buffer so a prolonged vmsingle outage can't fill
+          # the node's disk.
+          emptyDir:
+            sizeLimit: 1Gi

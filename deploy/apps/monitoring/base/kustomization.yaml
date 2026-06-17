@@ -30,3 +30,6 @@ resources:
   - grafana-dashboards-configmap.yaml
   - grafana-deployment.yaml
   - grafana-service.yaml
+  # Network isolation: lock the auth-less datastores to their known clients.
+  - networkpolicy-vmsingle.yaml
+  - networkpolicy-vlsingle.yaml

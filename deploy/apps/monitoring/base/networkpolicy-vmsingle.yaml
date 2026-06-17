@@ -1,0 +1,37 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  # vmsingle has no auth of its own — ClusterIP keeps it off the public edge, this
+  # keeps it private *inside* the cluster too: only vmagent (remote-write +
+  # self-scrape) and Grafana (queries) may reach the TSDB on :8428; every other pod
+  # is denied. Mirrors the isolation pattern used by cortex/go-judge.
+  #
+  # Kubelet health probes are host-sourced and are NOT affected by pod
+  # NetworkPolicies in this Calico cluster (verified: likec4 runs httpGet probes
+  # under a default-deny ingress policy and stays Ready), so vmsingle's /health
+  # probe keeps working.
+  name: vmsingle-allow-ingress
+  labels:
+    app.kubernetes.io/name: vmsingle
+    app.kubernetes.io/component: tsdb
+    app.kubernetes.io/part-of: monitoring
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: vmsingle
+      app.kubernetes.io/component: tsdb
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: vmagent
+              app.kubernetes.io/component: scraper
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: grafana
+              app.kubernetes.io/component: dashboard
+      ports:
+        - protocol: TCP
+          port: 8428

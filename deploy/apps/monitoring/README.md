@@ -1,17 +1,19 @@
-# Monitoring (metrics)
+# Monitoring (metrics + logs)
 
-Phase-1 observability for the homelab: **metrics + dashboards only**. The stack
-is [VictoriaMetrics](https://victoriametrics.com) (single-node TSDB) + `vmagent`
-(scraper) + `node-exporter` + `kube-state-metrics` + Grafana, all in the
-`monitoring` namespace and **Argo-synced** from `overlays/prod`.
+Observability for the homelab: **metrics, logs, and dashboards**. The stack is
+[VictoriaMetrics](https://victoriametrics.com) (single-node TSDB) + `vmagent`
+(scraper) + `node-exporter` + `kube-state-metrics` for metrics,
+[VictoriaLogs](https://docs.victoriametrics.com/victorialogs/) (`vlsingle`) + a
+Vector DaemonSet for logs, and Grafana over both — all in the `monitoring`
+namespace and **Argo-synced** from `overlays/prod`.
 
 Why VictoriaMetrics over Prometheus: ~5–10× lower RAM/disk for the same data
 (this cluster is RAM-tight — wk-1 has an OOM history), while staying
 Prometheus-query-API compatible so Grafana + PromQL + community dashboards all
 work unchanged. Plain Kustomize manifests, no Helm — consistent with the rest of
-the repo. Logs (VictoriaLogs) and traces (Tempo) are deferred to later phases;
-the `annotated-pods` scrape job is already in place so app `/metrics` endpoints
-(cortex, …) can be scraped later with no config change.
+the repo. Only **traces** (Tempo) remain deferred to a later phase; the
+`annotated-pods` scrape job is already in place so app `/metrics` endpoints
+(cortex, …) can be scraped with no config change.
 
 ## Before you deploy — check headroom
 
@@ -30,9 +32,12 @@ ssh wk-1 'free -h && df -h /var/lib/rancher/k3s/storage'
 - `base/vmsingle-{deployment,pvc,service}.yaml` — metrics store, 30d retention, 20Gi local-path PVC on wk-1
 - `base/vmagent-{rbac,scrape-configmap,deployment}.yaml` — scraper (5 jobs: kubelet, cAdvisor, node-exporter, kube-state-metrics, annotated-pods)
 - `base/node-exporter-{daemonset,service}.yaml` — host metrics on **all 4 nodes** (tolerates control-plane + edge taints)
-- `base/kube-state-metrics-{rbac,deployment,service}.yaml` — Kubernetes object-state metrics
-- `base/grafana-{datasource,dashboards-provider,dashboards}-configmap.yaml` — provisioned datasource (vmsingle) + a starter "Homelab Overview" dashboard
+- `base/kube-state-metrics-{rbac,deployment,service}.yaml` — Kubernetes object-state metrics (least-privilege: no `secrets`, explicit `--resources` allowlist)
+- `base/vlsingle-{deployment,pvc,service}.yaml` — VictoriaLogs store (logs counterpart of vmsingle, 20Gi local-path PVC)
+- `base/vector-{rbac,configmap,daemonset}.yaml` — Vector log collector on all 4 nodes → vlsingle `/insert/elasticsearch/`
+- `base/grafana-{datasource,dashboards-provider,dashboards}-configmap.yaml` — provisioned datasources (VictoriaMetrics + VictoriaLogs) + a starter "Homelab Overview" dashboard
 - `base/grafana-{deployment,service}.yaml` — Grafana with GitHub OAuth
+- `base/networkpolicy-{vmsingle,vlsingle}.yaml` — lock the auth-less datastores to their known clients (see "Network isolation" below)
 - `overlays/prod/ingress.yaml` — `grafana.kakde.eu` (Traefik + cert-manager, same pattern as cortex/keycloak)
 - `overlays/prod/grafana-admin-sealedsecret.yaml` — `grafana-admin` (break-glass local login)
 - `overlays/prod/grafana-github-oauth-sealedsecret.yaml` — `grafana-github-oauth` (client id + secret)
@@ -43,12 +48,40 @@ Grafana is exposed publicly at `grafana.kakde.eu` (edge Traefik, like
 `argocd.kakde.eu` / `keycloak.kakde.eu`) but **login is locked to GitHub user
 `ani2fun`** via Grafana's native GitHub OAuth. The lock is the
 `role_attribute_path` JMESPath (`login=='ani2fun' && 'GrafanaAdmin' || ''`) plus
-`role_attribute_strict=true`: every other GitHub account is denied. Add a user
-later by extending that path, e.g.
+`role_attribute_strict=true`: every other GitHub account is denied. `ani2fun` is
+auto-granted Grafana **server admin** (via `allow_assign_grafana_admin=true`),
+reasserted on every login — no manual admin grant needed. Add a user later by
+extending that path, e.g.
 `contains(['ani2fun','newperson'], login) && 'Editor' || ''`.
+
+**Three OAuth settings are load-bearing — changing any one locks you out:**
+
+- **`scopes` must include `read:org`.** Grafana lists the user's GitHub teams
+  (`GET /user/teams`) during login; without `read:org` that returns 404 and the
+  login aborts at the userinfo stage, before the role gate is even reached.
+- **`GF_AUTH_GITHUB_ALLOW_SIGN_UP` must stay `true`.** Grafana's
+  `/var/lib/grafana` is an `emptyDir`, wiped on every pod restart, so the account
+  is re-provisioned from GitHub on each login. The strict role gate above — not
+  this flag — enforces the single-user lock.
+- Dashboards survive restarts (provisioned from Git ConfigMaps); **user accounts
+  and saved preferences do not** (ephemeral DB).
 
 **Break-glass:** the local admin (sealed `grafana-admin`) login still works via
 `kubectl -n monitoring port-forward svc/grafana 3000:80` → <http://localhost:3000>.
+
+## Network isolation & least-privilege
+
+- **Datastore NetworkPolicies** (`base/networkpolicy-{vmsingle,vlsingle}.yaml`):
+  `vmsingle` (`:8428`) and `vlsingle` (`:9428`) have no auth of their own, so
+  ingress is locked to their real clients — vmagent (remote-write + self-scrape)
+  and Grafana (queries) for vmsingle; Vector (ingest), vmagent (scrape) and
+  Grafana for vlsingle. Every other pod is denied (Calico-enforced). Kubelet
+  httpGet probes are host-sourced, so they keep working under the policies.
+- **kube-state-metrics least-privilege**: the ClusterRole does **not** grant
+  `secrets` (that token could otherwise read every Secret in the cluster), and the
+  deployment pins an explicit `--resources` allowlist. The allowlist also omits
+  `validating`/`mutatingwebhookconfigurations`, silencing the `forbidden` log spam
+  KSM emitted every resync.
 
 ## Secrets referenced
 
