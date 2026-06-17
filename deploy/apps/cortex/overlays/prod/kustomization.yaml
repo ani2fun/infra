@@ -13,4 +13,4 @@ patches:
 images:
 - name: ghcr.io/ani2fun/cortex
   newName: ghcr.io/ani2fun/cortex
-  newTag: f422971b7ac63e38cd03f9c73361b6a65de27e93
+  newTag: 4e87b70139401778b1d458b625327450c65c4cb3
