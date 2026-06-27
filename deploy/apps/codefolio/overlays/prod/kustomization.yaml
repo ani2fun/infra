@@ -7,26 +7,12 @@ resources:
 images:
 - name: ghcr.io/ani2fun/codefolio
   newName: ghcr.io/ani2fun/codefolio
-  newTag: c3f94d2acd971fd27a1c77e9fa465a0b0ebc9631
-# Pin the static portfolio to the public edge node (vm-1). Tier-2 (stateless,
-# non-sensitive), so it's safe on the edge — and moving it off wk-1 frees RAM
-# on the home worker. Prod-only patch; dev stays on the home workers.
+  newTag: b7b4f364997488040a417d99e06435da4e35b346
 patches:
 - target:
     kind: Deployment
     name: codefolio
-  patch: |-
-    apiVersion: apps/v1
-    kind: Deployment
-    metadata:
-      name: codefolio
-    spec:
-      template:
-        spec:
-          nodeSelector:
-            kakde.eu/edge: "true"
-          tolerations:
-            - key: kakde.eu/edge
-              operator: Equal
-              value: "true"
-              effect: NoSchedule
+  patch: "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: codefolio\nspec:\n\
+    \  template:\n    spec:\n      nodeSelector:\n        kakde.eu/edge: \"true\"\n\
+    \      tolerations:\n        - key: kakde.eu/edge\n          operator: Equal\n\
+    \          value: \"true\"\n          effect: NoSchedule"
