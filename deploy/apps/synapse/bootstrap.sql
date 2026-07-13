@@ -39,11 +39,14 @@ GRANT ALL PRIVILEGES ON DATABASE synapse TO synapse;
 -- public PKCE as client `synapse-web` (GET /api/auth/config serves the coordinates — both come
 -- from the Deployment's OIDC_ISSUER/OIDC_AUDIENCE).
 --
--- Import the realm from synapse's realm-as-code file, RE-TEMPLATED for prod — never verbatim:
---   source: synapse repo, dev-tools/keycloak/synapse-realm.json
---   changes: drop the dev seed users (tester/test1) · set the synapse-web client's
---     redirectUris/webOrigins to https://synapse.kakde.eu/* · keep the client public+PKCE.
--- Import via Keycloak admin console (Add realm → import) at https://keycloak.kakde.eu, or kcadm.
+-- Import the PRE-TEMPLATED prod realm: deploy/apps/synapse/keycloak-realm-prod.json (derived from
+-- synapse's dev-tools/keycloak/synapse-realm.json — dev seed users dropped, prod redirect URIs,
+-- sslRequired external, direct-access grants off). Import via the Keycloak admin console
+-- (Create realm → import) at https://keycloak.kakde.eu, or kcadm.
+--
+-- Sign-in accounts: the realm imports with NO users and registration OFF. Create accounts in the
+-- admin console, or flip registrationAllowed, or wire the GitHub IdP like apps-prod
+-- (scripts/secrets/sync-keycloak-github-idp.sh is the precedent) — owner's call at go-live.
 --
 -- The Deployment also needs the sealed Keycloak-admin copy in apps-prod
 -- (sealedsecret-keycloak-admin.yaml — the canonical secret lives in the `identity` namespace and

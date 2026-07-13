@@ -1,0 +1,28 @@
+{
+  "realm": "synapse",
+  "displayName": "Synapse",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "accessTokenLifespan": 300,
+  "clients": [
+    {
+      "clientId": "synapse-web",
+      "name": "Synapse SPA",
+      "description": "Public PKCE client for the Synapse SPA (ADR-S024). Prod re-template of synapse's dev-tools/keycloak/synapse-realm.json: prod URLs, sslRequired external, no dev seed users — the issuer the app validates is https://keycloak.kakde.eu/realms/synapse (Deployment OIDC_ISSUER).",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": ["https://synapse.kakde.eu/*"],
+      "webOrigins": ["https://synapse.kakde.eu"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "https://synapse.kakde.eu/*"
+      }
+    }
+  ]
+}
