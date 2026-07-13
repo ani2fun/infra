@@ -1,0 +1,23 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  # Owned by synapse (the consumer), targets synapse-likec4 pods — the same
+  # consumer-owned-grant pattern as cortex's networkpolicy-likec4. Lets the
+  # app's /c4/* reverse proxy reach its own LikeC4 SPA; synapse-likec4 has no
+  # other consumer, so this is the only ingress it needs.
+  name: synapse-likec4-allow-ingress-from-synapse
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: synapse-likec4
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: synapse
+              app.kubernetes.io/component: app
+      ports:
+        - protocol: TCP
+          port: 8080

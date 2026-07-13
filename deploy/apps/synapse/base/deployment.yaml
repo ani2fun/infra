@@ -1,0 +1,178 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: synapse
+spec:
+  # 1 replica is CORRECT, not a compromise: the in-memory rate limiter and the
+  # go-judge client semaphore are per-pod state (ADR-S033). Scale out only after
+  # moving rate limiting to Redis.
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: synapse
+      app.kubernetes.io/component: app
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: synapse
+        app.kubernetes.io/component: app
+    spec:
+      terminationGracePeriodSeconds: 20
+      # Content ships by git-sync, NOT in the image (ADR-S003/S033): the sidecar
+      # pulls ani2fun/synapse-content (public, anonymous https) into a shared
+      # emptyDir; the server reads SYNAPSE_ROOT=/content/current (git-sync's
+      # stable symlink) and re-indexes when the checkout's HEAD SHA advances —
+      # prose publishing is a `git push`, live within a minute, zero redeploys.
+      initContainers:
+        # One-time clone BEFORE the app starts, so the catalog is never empty at boot.
+        - name: content-init
+          image: registry.k8s.io/git-sync/git-sync:v4.4.0
+          args:
+            - --repo=https://github.com/ani2fun/synapse-content.git
+            - --ref=main
+            - --root=/content
+            - --link=current
+            - --depth=1
+            - --one-time
+          volumeMounts:
+            - name: content
+              mountPath: /content
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65533 # git-sync's own non-root user
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+      containers:
+        - name: synapse
+          image: ghcr.io/ani2fun/synapse:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: PORT
+              value: "8080"
+            # The git-sync checkout (the `current` symlink flips atomically per pull).
+            - name: SYNAPSE_ROOT
+              value: /content/current
+            # contentVersion = the checkout's git HEAD SHA, re-read per request
+            # (ContentCommitSha, step 34) — a sidecar pull re-indexes the catalog.
+            - name: CONTENT_AUTO_RELOAD
+              value: "false"
+            - name: DATABASE_URL
+              value: jdbc:postgresql://postgresql.databases-prod.svc.cluster.local:5432/synapse
+            - name: DATABASE_USER
+              value: synapse
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: synapse-db
+                  key: postgres-password
+            # Synapse's OWN sandbox (deploy/apps/synapse-go-judge) — not the shared
+            # go-judge: isolated concurrency budget + independently evolving toolchains.
+            - name: EXECUTOR_URL
+              value: http://synapse-go-judge:5050
+            # The merged /c4 SPA built from synapse-content (deploy/apps/synapse-likec4),
+            # reverse-proxied by the app at /c4/*.
+            - name: LIKEC4_URL
+              value: http://synapse-likec4
+            # Identity (ADR-S024): realm-per-app — the `synapse` realm, imported from
+            # synapse's dev-tools/keycloak/synapse-realm.json with prod URLs. One env
+            # drives BOTH server-side JWT validation and the browser's PKCE config
+            # (GET /api/auth/config splits issuer into url + realm).
+            - name: OIDC_ISSUER
+              value: https://keycloak.kakde.eu/realms/synapse
+            - name: OIDC_AUDIENCE
+              value: synapse-web
+            # Keycloak bootstrap admin (master realm) — the account-deletion adapter
+            # (step 21) calls the Admin API with it. Sealed copy in apps-prod (the
+            # identity-namespace secret is not referenceable across namespaces).
+            - name: KEYCLOAK_ADMIN_USER
+              valueFrom:
+                secretKeyRef:
+                  name: synapse-keycloak-admin
+                  key: username
+            - name: KEYCLOAK_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: synapse-keycloak-admin
+                  key: password
+            # Submit-and-save gating (step 21): only rows in the submission_allowlist
+            # table may submit. Grants are live SQL inserts — no redeploy.
+            - name: SUBMISSION_ALLOWLIST_ENFORCED
+              value: "true"
+            # TUTOR_ENABLED stays unset: the coach is local-only (ADR-S025) — the
+            # chat route never mounts and the client shows "coming soon".
+          volumeMounts:
+            - name: content
+              mountPath: /content
+              readOnly: true
+          # JVM boot + Liquibase migration need the startup grace (up to 150s).
+          startupProbe:
+            httpGet:
+              path: /api/health
+              port: 8080
+            failureThreshold: 30
+            periodSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 6
+          livenessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+        # The ongoing pull loop — every 60s; the `current` symlink flip is atomic,
+        # and the server picks the new SHA up on the next request.
+        - name: git-sync
+          image: registry.k8s.io/git-sync/git-sync:v4.4.0
+          args:
+            - --repo=https://github.com/ani2fun/synapse-content.git
+            - --ref=main
+            - --root=/content
+            - --link=current
+            - --depth=1
+            - --period=60s
+          volumeMounts:
+            - name: content
+              mountPath: /content
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65533
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+      volumes:
+        - name: content
+          emptyDir: {}
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault

@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: synapse-likec4
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: synapse-likec4
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: synapse-likec4
+    spec:
+      terminationGracePeriodSeconds: 10
+      # Same Tier-2 placement rationale as the cortex likec4: a stateless,
+      # non-sensitive diagram renderer is safe on the public edge node and
+      # frees RAM on the home workers.
+      nodeSelector:
+        kakde.eu/edge: "true"
+      tolerations:
+        - key: kakde.eu/edge
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+      containers:
+        - name: synapse-likec4
+          # Built by synapse-content's CI (likec4.Dockerfile): the merged /c4 SPA
+          # from every .c4 in the content repo, nginx-unprivileged at :8080.
+          # Rebuilds on **/*.c4 pushes.
+          image: ghcr.io/ani2fun/synapse-likec4:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /c4/
+              port: 8080
+            initialDelaySeconds: 3
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /c4/
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 2
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 25m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 101 # nginx-unprivileged
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault

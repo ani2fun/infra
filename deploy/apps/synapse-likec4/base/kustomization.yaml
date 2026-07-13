@@ -1,0 +1,9 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - deployment.yaml
+  - service.yaml
+# NetworkPolicy lives in deploy/apps/synapse/base/networkpolicy-likec4.yaml
+# (consumer-owned grant): synapse's /c4 proxy is the only in-cluster consumer,
+# same pattern as the cortex/codefolio likec4.

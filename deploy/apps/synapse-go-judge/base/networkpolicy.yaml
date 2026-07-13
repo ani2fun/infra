@@ -1,0 +1,30 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  # Mirrors go-judge-isolation for synapse's own executor: only the synapse app
+  # may reach the REST API (single consumer, so the grant lives HERE rather than
+  # as a consumer-side sibling policy), and all egress is denied — toolchains
+  # are baked into the image, sandboxes run network-less, and the executor
+  # initiates nothing outbound. Reply traffic rides connection tracking.
+  name: synapse-go-judge-isolation
+  labels:
+    app.kubernetes.io/name: synapse-go-judge
+    app.kubernetes.io/component: executor
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: synapse-go-judge
+      app.kubernetes.io/component: executor
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: synapse
+              app.kubernetes.io/component: app
+      ports:
+        - protocol: TCP
+          port: 5050
+  egress: []

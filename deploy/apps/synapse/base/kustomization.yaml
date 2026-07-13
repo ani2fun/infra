@@ -1,0 +1,12 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# NOTE: no `labels: includeSelectors: true` — the NetworkPolicy inlines a
+# cross-app podSelector (synapse-likec4), which selector-injection would
+# silently rewrite. Labels are written explicitly in each manifest (the same
+# rule as deploy/apps/go-judge).
+
+resources:
+  - deployment.yaml
+  - service.yaml
+  - networkpolicy-likec4.yaml

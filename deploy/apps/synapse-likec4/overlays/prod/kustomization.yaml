@@ -1,0 +1,12 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: apps-prod
+
+resources:
+  - ../../base
+
+images:
+  - name: ghcr.io/ani2fun/synapse-likec4
+    newName: ghcr.io/ani2fun/synapse-likec4
+    newTag: latest # synapse-content's CI (likec4-build-push-promote) patches this on .c4 pushes

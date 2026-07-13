@@ -1,0 +1,86 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: synapse-go-judge
+  labels:
+    app.kubernetes.io/name: synapse-go-judge
+    app.kubernetes.io/component: executor
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: synapse-go-judge
+      app.kubernetes.io/component: executor
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: synapse-go-judge
+        app.kubernetes.io/component: executor
+    spec:
+      terminationGracePeriodSeconds: 30
+      # Same placement + priority posture as the shared go-judge (see that app's
+      # manifests for the 2026-06-07 OOM rationale): pinned to wk-1 (RAM headroom),
+      # negative priority so the untrusted-code executor is evicted first and never
+      # preempts the database. References the EXISTING cluster-scoped PriorityClass
+      # `go-judge-low` (owned by deploy/apps/go-judge) — not redefined here.
+      nodeSelector:
+        kubernetes.io/hostname: wk-1
+      priorityClassName: go-judge-low
+      containers:
+        - name: synapse-go-judge
+          # Published by synapse's CI (runner/go-judge/Dockerfile): the stock
+          # criyle/go-judge + every synapse.server.execution.domain.Language
+          # toolchain. Synapse's OWN sandbox — isolated concurrency budget,
+          # independently evolving toolchains (ADR-S033).
+          image: ghcr.io/ani2fun/synapse-go-judge:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 5050
+          env:
+            - name: ES_HTTP_ADDR
+              value: ":5050"
+            # One concurrent sandbox: caps the worst-case memory blast radius
+            # (matches the shared go-judge's post-incident setting). The app's
+            # own client-side semaphore queues above this.
+            - name: ES_PARALLELISM
+              value: "1"
+            # ES_NET_SHARE stays unset (false): every sandbox gets an isolated,
+            # network-LESS namespace — executed code cannot phone home.
+          # exec probes: they run INSIDE the container, immune to the ingress policy.
+          readinessProbe:
+            exec:
+              command: ["/bin/sh", "-c", "curl -fsS http://127.0.0.1:5050/version >/dev/null"]
+            initialDelaySeconds: 3
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            exec:
+              command: ["/bin/sh", "-c", "curl -fsS http://127.0.0.1:5050/version >/dev/null"]
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+          volumeMounts:
+            - name: dshm
+              mountPath: /dev/shm
+          # go-judge sandboxes with Linux namespaces + cgroups (cgroup-v2-native):
+          # needs privileged; RuntimeDefault seccomp would block its sandbox syscalls.
+          securityContext:
+            privileged: true
+      volumes:
+        # Match upstream `docker run --shm-size=256m`.
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 256Mi
