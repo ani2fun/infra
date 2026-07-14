@@ -173,7 +173,10 @@ cluster at all — the git-sync sidecar picks them up within a minute.
 Prod runs `SUBMISSION_ALLOWLIST_ENFORCED=true`: signed-in users can read/run, but only allow-listed
 usernames may submit-and-save. **The normal path is the `/admin` panel** (step 35): sign in as a user
 listed in the Deployment's `ADMIN_USERS` (currently `ani2fun`) → account menu → Admin panel → grant
-the username. Grants are live. SQL remains the break-glass path (e.g. before the first admin can
+the username. Grants are live. **Fresh-database note:** Liquibase's changeset 002 seeds two dev rows
+(`tester`, `test1` — note "dev realm seed", there so local dev works out of the box). They are inert
+in prod (no such users exist in the `synapse` realm) but appear in the panel on a from-scratch
+deploy — revoke them from `/admin`. SQL remains the break-glass path (e.g. before the first admin can
 sign in — though the admin gate itself is env-based, so the admin just needs an account):
 
 ```bash
