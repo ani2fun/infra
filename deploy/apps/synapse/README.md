@@ -190,6 +190,40 @@ INSERT INTO submission_allowlist (username, note) VALUES ('<keycloak-username>',
 
 Grants are live — no restart.
 
+## Admins & the allowlist — the authorization model
+
+Two independent lists, on purpose:
+
+| | What it controls | Where it lives | How it changes | Live? |
+|---|---|---|---|---|
+| **`ADMIN_USERS`** | who may open `/admin` and manage the allowlist | env var in `deploy/apps/synapse/base/deployment.yaml` (comma-separated IdP usernames) | git commit + push → ArgoCD rolls the pod | no — needs a redeploy |
+| **submit allowlist** | who may submit-and-save | `submission_allowlist` Postgres table | the `/admin` panel (or SQL) | yes — next request, no restart |
+
+**Nothing is hardcoded in the application.** `ADMIN_USERS` is read into `AppConfig.admin`; every
+`/api/admin/*` call re-authenticates the bearer and checks `username ∈ ADMIN_USERS` server-side
+(anonymous → 401, signed-in non-admin → 403). The `admin:true` flag on `/api/me` only makes the panel
+*appear* — the server never trusts it for authority.
+
+**Add another admin:**
+```bash
+cd ~/Development/homelab/infra
+# deploy/apps/synapse/base/deployment.yaml → ADMIN_USERS value: ani2fun,new-handle
+git commit -am "feat(synapse): add new-handle to ADMIN_USERS" && git push
+```
+ArgoCD rolls the pod (~1 min); that user gets the panel on their next sign-in. Remove = same edit
+in reverse. With GitHub sign-in the username IS the GitHub handle (Keycloak imports the login).
+
+**Check who is admin right now:**
+```bash
+kubectl -n apps-prod get deploy synapse \
+  -o jsonpath='{.spec.template.spec.containers[0].env[?(@.name=="ADMIN_USERS")].value}'
+```
+
+**Deliberate asymmetry (a security choice):** allowlist grants are live and self-service (an admin
+grants from the UI), but admin-ship changes ONLY through the GitOps trail — a commit, reviewable,
+never a button. A compromised admin session can grant submit access but **cannot mint new admins**.
+Admin ≠ allowlisted: an admin who wants to submit still grants themselves a row.
+
 ## 8. Verify (the parity checklist)
 
 ```bash
