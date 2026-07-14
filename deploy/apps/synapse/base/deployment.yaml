@@ -88,19 +88,17 @@ spec:
               value: https://keycloak.kakde.eu/realms/synapse
             - name: OIDC_AUDIENCE
               value: synapse-web
-            # Keycloak bootstrap admin (master realm) — the account-deletion adapter
-            # (step 21) calls the Admin API with it. Sealed copy in apps-prod (the
-            # identity-namespace secret is not referenceable across namespaces).
-            - name: KEYCLOAK_ADMIN_USER
+            # Account deletion (step 21) calls the Keycloak Admin API as a LEAST-PRIVILEGE
+            # service-account client in the synapse realm (step 37): client_credentials, scoped to
+            # realm-management:manage-users only — NOT the master-realm admin it used to hold. A
+            # pod-env leak can now at worst delete users in this one realm, not take over the IdP.
+            - name: KEYCLOAK_ADMIN_CLIENT_ID
+              value: synapse-admin
+            - name: KEYCLOAK_ADMIN_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:
                   name: synapse-keycloak-admin
-                  key: username
-            - name: KEYCLOAK_ADMIN_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: synapse-keycloak-admin
-                  key: password
+                  key: client-secret
             # Submit-and-save gating (step 21): only rows in the submission_allowlist
             # table may submit. Grants are managed from the /admin panel (step 35) —
             # or live SQL inserts; either way no redeploy.
@@ -146,6 +144,12 @@ spec:
               cpu: 1000m
               memory: 1Gi
           securityContext:
+            # Run the JVM as a non-root uid (step 37 hardening). The pod's fsGroup (below) makes the
+            # git-sync emptyDir group-readable, so a non-root app can still read SYNAPSE_ROOT; STATIC_ROOT
+            # is world-readable image content. Caps already dropped + no priv-escalation + RuntimeDefault.
+            runAsNonRoot: true
+            runAsUser: 65532
+            runAsGroup: 65532
             allowPrivilegeEscalation: false
             capabilities:
               drop:
@@ -182,5 +186,8 @@ spec:
         - name: content
           emptyDir: {}
       securityContext:
+        # fsGroup makes the shared `content` emptyDir group-owned (65532) + setgid, so the non-root app
+        # container reads what the git-sync sidecar (uid 65533) writes into it.
+        fsGroup: 65532
         seccompProfile:
           type: RuntimeDefault

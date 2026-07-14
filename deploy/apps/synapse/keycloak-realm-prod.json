@@ -23,6 +23,25 @@
         "pkce.code.challenge.method": "S256",
         "post.logout.redirect.uris": "https://synapse.kakde.eu/*"
       }
+    },
+    {
+      "clientId": "synapse-admin",
+      "name": "Synapse account-admin (service account)",
+      "description": "Confidential service-account client the server uses for account deletion (step 37) — client_credentials, scoped to realm-management:manage-users only. Keycloak generates its secret on import; reseal it into synapse-keycloak-admin (key client-secret) — see bootstrap.sql.",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true
+    }
+  ],
+  "users": [
+    {
+      "username": "service-account-synapse-admin",
+      "enabled": true,
+      "serviceAccountClientId": "synapse-admin",
+      "clientRoles": { "realm-management": ["manage-users"] }
     }
   ]
 }
