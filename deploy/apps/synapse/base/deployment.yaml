@@ -75,9 +75,11 @@ spec:
             - name: EXECUTOR_URL
               value: http://synapse-go-judge:5050
             # The merged /c4 SPA built from synapse-content (deploy/apps/synapse-likec4),
-            # reverse-proxied by the app at /c4/*.
+            # reverse-proxied by the app at /c4/*. The proxy STRIPS the /c4 prefix from the
+            # request path, and the nginx image serves the SPA UNDER /c4/ — so the upstream
+            # base must carry the prefix back.
             - name: LIKEC4_URL
-              value: http://synapse-likec4
+              value: http://synapse-likec4/c4
             # Identity (ADR-S024): realm-per-app — the `synapse` realm, imported from
             # synapse's dev-tools/keycloak/synapse-realm.json with prod URLs. One env
             # drives BOTH server-side JWT validation and the browser's PKCE config
