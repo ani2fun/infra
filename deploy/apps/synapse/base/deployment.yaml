@@ -102,9 +102,15 @@ spec:
                   name: synapse-keycloak-admin
                   key: password
             # Submit-and-save gating (step 21): only rows in the submission_allowlist
-            # table may submit. Grants are live SQL inserts — no redeploy.
+            # table may submit. Grants are managed from the /admin panel (step 35) —
+            # or live SQL inserts; either way no redeploy.
             - name: SUBMISSION_ALLOWLIST_ENFORCED
               value: "true"
+            # Who may open the /admin panel and manage the allowlist (step 35):
+            # comma-separated Keycloak usernames — with the GitHub IdP these ARE
+            # the GitHub handles.
+            - name: ADMIN_USERS
+              value: ani2fun
             # TUTOR_ENABLED stays unset: the coach is local-only (ADR-S025) — the
             # chat route never mounts and the client shows "coming soon".
           volumeMounts:
