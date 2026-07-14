@@ -122,10 +122,20 @@ curl -sf https://keycloak.kakde.eu/realms/synapse/.well-known/openid-configurati
 > (`kubectl -n identity logs deploy/keycloak --since=10m`) has the real
 > `value too long for type character varying(255)` error.
 
-**Accounts**: the realm imports with **no users and registration off**. Create your account in the
-admin console (https://keycloak.kakde.eu → realm `synapse` → Users → Create), or flip
-`registrationAllowed`, or wire the GitHub IdP like `apps-prod`
-(`scripts/secrets/sync-keycloak-github-idp.sh` is the precedent).
+**Accounts — GitHub sign-in (the intended path)**: the realm imports with no users and registration
+off. Wire the GitHub identity provider with `scripts/secrets/sync-synapse-github-idp.sh`:
+
+1. Create the realm's OWN GitHub OAuth app (OAuth apps carry ONE callback URL, so apps-prod's can't
+   be shared): GitHub → Settings → Developer settings → OAuth Apps → New OAuth App —
+   Homepage `https://synapse.kakde.eu`, callback
+   `https://keycloak.kakde.eu/realms/synapse/broker/github/endpoint`.
+2. `scripts/secrets/sync-synapse-github-idp.sh <client-id> <client-secret>` — stores them as the
+   `synapse-keycloak-github-oauth` secret (identity namespace) and creates/updates the IdP. Re-run
+   with no args to re-sync; with new args to rotate.
+3. Keycloak imports the GitHub **login** as the username, so the JWT's `preferred_username` is the
+   GitHub handle — exactly what `ADMIN_USERS` and the submit allowlist key on.
+
+Alternatives: create users in the admin console, or flip `registrationAllowed`.
 
 ## 5. ArgoCD — apply the three Applications
 
@@ -161,7 +171,10 @@ cluster at all — the git-sync sidecar picks them up within a minute.
 ## 7. Submit allowlist
 
 Prod runs `SUBMISSION_ALLOWLIST_ENFORCED=true`: signed-in users can read/run, but only allow-listed
-usernames may submit-and-save. After the app's first boot (Liquibase has created the table):
+usernames may submit-and-save. **The normal path is the `/admin` panel** (step 35): sign in as a user
+listed in the Deployment's `ADMIN_USERS` (currently `ani2fun`) → account menu → Admin panel → grant
+the username. Grants are live. SQL remains the break-glass path (e.g. before the first admin can
+sign in — though the admin gate itself is env-based, so the admin just needs an account):
 
 ```bash
 kubectl -n databases-prod exec -it postgresql-0 -- sh -lc \
