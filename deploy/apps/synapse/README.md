@@ -16,10 +16,10 @@ executed and verified on 2026-07-14.
 Two Secrets in `apps-prod` (sealed into git):
 
 - **`synapse-db`** (`postgres-password`) — the app's Postgres role password.
-- **`synapse-keycloak-admin`** (`username`, `password`) — a sealed **copy** of the Keycloak bootstrap
-  admin. Needed because the canonical `keycloak-admin-secret` lives in the `identity` namespace and
-  pods cannot reference Secrets across namespaces; synapse's account-deletion adapter calls the
-  Keycloak Admin API with it.
+- **`synapse-keycloak-admin`** (`client-secret`) — the secret of the **`synapse-admin`** confidential
+  service-account client (step 37). Account deletion authenticates as this client
+  (`client_credentials`), scoped to `realm-management:manage-users` on the `synapse` realm only —
+  least privilege, NOT the master-realm admin.
 
 ## 0. Prerequisites
 
@@ -116,6 +116,12 @@ kubectl -n identity exec -i deploy/keycloak -- bash -c \
 curl -sf https://keycloak.kakde.eu/realms/synapse/.well-known/openid-configuration | head -c 120
 ```
 
+> **Service-account client (step 37):** the realm file also seeds `synapse-admin` — a confidential
+> service-account client the server uses for account deletion. On a from-scratch import, Keycloak
+> generates its secret: read it (`kcadm get clients/<id>/client-secret -r synapse`), seal it into
+> `synapse-keycloak-admin` key `client-secret` (`kubectl create secret … | kubeseal --cert …`), and
+> commit. On this cluster it was created live with kcadm + `add-roles … --rolename manage-users`.
+>
 > **Gotcha (hit on first import):** Keycloak's `CLIENT.DESCRIPTION` column is `varchar(255)`. A
 > longer client description fails the whole import with the opaque `Database operation failed`
 > (the transaction rolls back cleanly — just fix and re-run). The server log
@@ -263,13 +269,12 @@ keycloak-js memory (not localStorage); no secrets in the repo.
 
 **Known items (not yet done — see the roadmap):**
 
-- **HIGH — the app pod holds Keycloak *master-realm* admin credentials** (`KEYCLOAK_ADMIN_USER/PASSWORD`,
-  used only for self-service account deletion). A leak of the pod env = full IdP takeover. Fix: swap
-  the master password grant for a confidential **service-account client** scoped to the `synapse`
-  realm's `manage-users` only. (Cortex runs the same posture today — a shared debt, not new.)
-- **MEDIUM — the app container has no `runAsNonRoot`/`runAsUser`** (caps are dropped + no-priv-escalation
-  + RuntimeDefault seccomp, but the temurin image's default user is root). Add a numeric `runAsUser`
-  and `runAsNonRoot: true` once tested against the git-sync emptyDir mount.
+- ✅ **DONE (step 37) — the master-realm credential is gone.** Account deletion now authenticates as
+  the `synapse-admin` confidential service-account client (`client_credentials`), scoped to
+  `realm-management:manage-users` on the `synapse` realm only. A pod-env leak can at worst delete users
+  in this one realm.
+- ✅ **DONE (step 37) — the app runs non-root** (`runAsUser: 65532` + a pod `fsGroup: 65532` so it reads
+  the git-sync emptyDir), on top of the dropped caps / no-priv-escalation / RuntimeDefault it already had.
 - **MEDIUM — GitHub IdP hardening**: the realm's `first broker login` flow has **Review Profile =
   REQUIRED**, so a first-time GitHub user sees an editable username field. Keycloak's uniqueness blocks
   claiming an *existing* handle, but before wiring the IdP set Review Profile to DISABLED (or trust the
