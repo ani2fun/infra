@@ -245,6 +245,39 @@ python/java fence, sign in (realm `synapse`), **Edit** lesson code while signed 
 problem (403 without an allowlist row, 202 with), open a `/c4` architecture diagram, ⌘K search,
 blog, the library tour.
 
+## Security posture & audit (2026-07-14)
+
+A full review of the auth + admin + platform surfaces. Fixed in code (step 36): username
+case-normalization (the admin gate and allowlist now compare a canonical lowercase username, closing
+a `Ani2fun` vs `ani2fun` silent-403 and an `Alice`/`alice` double-identity), and **baseline security
+headers** at the origin (nosniff, X-Frame-Options SAMEORIGIN, Referrer-Policy, a CSP that allows only
+self + the Keycloak origin for connect/frame, HSTS) — verified not to break the OIDC sign-in round
+trip.
+
+**Verified clean:** RS256 pinned (no alg-confusion / alg:none), issuer+audience+expiry checked, JWKS
+cached/rotated; account deletion is self-only (token's own `sub`); submission delete/erase are
+owner-scoped (no IDOR); every SQL path is a PreparedStatement; the content cache header never stamps
+an authenticated route; LikeC4 proxy host is fixed (no SSRF); media/static path-traversal guards hold
+(realpath + confine); the admin panel renders via Laminar text nodes (no XSS); tokens live in
+keycloak-js memory (not localStorage); no secrets in the repo.
+
+**Known items (not yet done — see the roadmap):**
+
+- **HIGH — the app pod holds Keycloak *master-realm* admin credentials** (`KEYCLOAK_ADMIN_USER/PASSWORD`,
+  used only for self-service account deletion). A leak of the pod env = full IdP takeover. Fix: swap
+  the master password grant for a confidential **service-account client** scoped to the `synapse`
+  realm's `manage-users` only. (Cortex runs the same posture today — a shared debt, not new.)
+- **MEDIUM — the app container has no `runAsNonRoot`/`runAsUser`** (caps are dropped + no-priv-escalation
+  + RuntimeDefault seccomp, but the temurin image's default user is root). Add a numeric `runAsUser`
+  and `runAsNonRoot: true` once tested against the git-sync emptyDir mount.
+- **MEDIUM — GitHub IdP hardening**: the realm's `first broker login` flow has **Review Profile =
+  REQUIRED**, so a first-time GitHub user sees an editable username field. Keycloak's uniqueness blocks
+  claiming an *existing* handle, but before wiring the IdP set Review Profile to DISABLED (or trust the
+  broker username) so the GitHub login is imported verbatim — no chance to hand-edit into a
+  configured-but-unregistered `ADMIN_USERS` name.
+- **LOW — `/api/me` token verification is un-rate-limited** (mild CPU-amplification with junk tokens).
+  Consider extending the RateLimiter to it.
+
 ## Troubleshooting
 
 | Symptom | Cause / fix |
