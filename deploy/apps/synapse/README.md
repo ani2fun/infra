@@ -207,3 +207,4 @@ blog, the library tour.
 | Sign-in fails with realm/issuer errors | Realm not imported, or the Deployment's `OIDC_ISSUER` doesn't match `https://keycloak.kakde.eu/realms/synapse`. |
 | Edge cert renewal fails later | CAA got tightened to LE-only — re-allow `pki.goog` too. |
 | LikeC4 image builds but diagrams are broken | Never name the content-repo dockerfile `Dockerfile.likec4` — likec4 parses `**/*.likec4` as model sources; it must stay `likec4.Dockerfile`. |
+| `/c4/` 404 through the domain while the likec4 pod is healthy | The app's proxy STRIPS the `/c4` prefix and the nginx image serves the SPA UNDER `/c4/` — `LIKEC4_URL` must be `http://synapse-likec4/c4` (hit + fixed on first deploy). |
