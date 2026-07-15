@@ -260,6 +260,15 @@ headers** at the origin (nosniff, X-Frame-Options SAMEORIGIN, Referrer-Policy, a
 self + the Keycloak origin for connect/frame, HSTS) — verified not to break the OIDC sign-in round
 trip.
 
+**Accepted CSP costs** (both broke prod when omitted; the policy is otherwise same-origin):
+`script-src` carries `'unsafe-inline'` (index.html's theme-bootstrap script + Cloudflare's injected
+beacon loader — neither can carry a nonce) and `'unsafe-eval'` (d2 spawns its render worker as a
+`blob:` worker, which inherits the page CSP, and that worker loads its embedded ELK layout engine
+via `new Function` at init — even under the dagre layout; `'wasm-unsafe-eval'` covers only WASM,
+and no directive scopes eval to one worker). Without `'unsafe-eval'` every d2 diagram fails with an
+EvalError card. Dev never shows CSP breakage: Vite serves the SPA without the origin's headers —
+validate CSP changes against prod-shaped serving and the heaviest pages (Monaco + d2).
+
 **Verified clean:** RS256 pinned (no alg-confusion / alg:none), issuer+audience+expiry checked, JWKS
 cached/rotated; account deletion is self-only (token's own `sub`); submission delete/erase are
 owner-scoped (no IDOR); every SQL path is a PreparedStatement; the content cache header never stamps
