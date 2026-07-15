@@ -10,3 +10,12 @@ labels:
 resources:
   - deployment.yaml
   - service.yaml
+
+# Synapse login theme (theme/login/*) — mounted into the pod at
+# /opt/keycloak/themes/synapse via the volume in deployment.yaml. The
+# generator's name hash forces a rollout whenever the theme files change.
+configMapGenerator:
+  - name: keycloak-synapse-theme
+    files:
+      - theme/login/theme.properties
+      - theme/login/synapse.v2.css

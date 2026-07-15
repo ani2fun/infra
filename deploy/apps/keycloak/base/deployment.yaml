@@ -117,3 +117,16 @@ spec:
             limits:
               cpu: 1500m
               memory: 2Gi
+          volumeMounts:
+            - name: synapse-theme
+              mountPath: /opt/keycloak/themes/synapse
+              readOnly: true
+      volumes:
+        - name: synapse-theme
+          configMap:
+            name: keycloak-synapse-theme
+            items:
+              - key: theme.properties
+                path: login/theme.properties
+              - key: synapse.v2.css
+                path: login/resources/css/synapse.v2.css

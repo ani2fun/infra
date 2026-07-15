@@ -1,0 +1,288 @@
+/*
+ * Synapse login theme — brand skin over keycloak.v2 (PatternFly v5).
+ *
+ * Tokens mirror synapse/client/tailwind.css (ADR-S018 palette):
+ *   dark  = cool-slate near-black + bright teal
+ *   light = warm paper + deep teal
+ * Fonts mirror synapse/client/index.html (Noto Sans + JetBrains Mono).
+ *
+ * keycloak.v2 toggles `pf-v5-theme-dark` on <html> from prefers-color-scheme,
+ * so the variable flip below tracks the OS exactly like the app does.
+ */
+
+@import url("https://fonts.googleapis.com/css2?family=Noto+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600;1,700&family=JetBrains+Mono:wght@400;500;600&display=swap");
+
+:root {
+  /* light — warm paper */
+  --syn-background: hsl(45 44% 96%);
+  --syn-foreground: hsl(224 14% 16%);
+  --syn-card: hsl(0 0% 100%);
+  --syn-muted-foreground: hsl(224 8% 42%);
+  --syn-border: hsl(43 26% 86%);
+  --syn-input-bg: hsl(0 0% 100%);
+  --syn-primary: hsl(169 82% 27%);
+  --syn-primary-hover: hsl(169 82% 22%);
+  --syn-primary-border: hsl(169 82% 27% / 0.45);
+  --syn-primary-tint: hsl(169 82% 27% / 0.08);
+  --syn-primary-foreground: hsl(0 0% 100%);
+  --syn-error: hsl(4 54% 50%);
+  --syn-radius: 14px;
+  --syn-radius-btn: 10px;
+  --syn-font-sans: "Noto Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --syn-font-mono: "JetBrains Mono", ui-mono, "SF Mono", Menlo, Monaco, monospace;
+}
+
+html.pf-v5-theme-dark {
+  /* dark — cool slate + bright teal */
+  --syn-background: hsl(223 15% 9%);
+  --syn-foreground: hsl(60 6% 90%);
+  --syn-card: hsl(222 15% 13%);
+  --syn-muted-foreground: hsl(220 7% 66%);
+  --syn-border: hsl(220 15% 20%);
+  --syn-input-bg: hsl(220 15% 16%);
+  --syn-primary: hsl(166 63% 48%);
+  --syn-primary-hover: hsl(166 63% 42%);
+  --syn-primary-border: hsl(166 63% 48% / 0.45);
+  --syn-primary-tint: hsl(166 63% 48% / 0.08);
+  --syn-primary-foreground: hsl(168 71% 8%);
+  --syn-error: hsl(6 78% 70%);
+}
+
+/* ---- page ---------------------------------------------------------------- */
+
+body#keycloak-bg {
+  background: radial-gradient(60rem 40rem at 50% -10%, hsl(166 63% 48% / 0.06), transparent 60%), var(--syn-background);
+  font-family: var(--syn-font-sans);
+  color: var(--syn-foreground);
+}
+
+/* ---- brand header — lowercase mono wordmark + teal graph chip ------------ */
+
+#kc-header-wrapper.pf-v5-c-brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-family: var(--syn-font-mono);
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  text-transform: lowercase;
+  color: var(--syn-foreground);
+}
+
+#kc-header-wrapper.pf-v5-c-brand::before {
+  content: "";
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border-radius: 7px;
+  background-color: var(--syn-primary);
+  /* 3-node "synapse" graph, stroked in the on-primary colour */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30' fill='none' stroke='%23062820' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M9 20L15 10M15 10L21 20M9 20L21 20'/%3E%3Ccircle cx='15' cy='10' r='2.6' fill='%23062820' stroke='none'/%3E%3Ccircle cx='9' cy='20' r='2.6' fill='%23062820' stroke='none'/%3E%3Ccircle cx='21' cy='20' r='2.6' fill='%23062820' stroke='none'/%3E%3C/svg%3E");
+  background-size: cover;
+}
+
+/* ---- card ----------------------------------------------------------------- */
+
+.pf-v5-c-login__main {
+  background: var(--syn-card);
+  border: 1px solid var(--syn-border);
+  border-radius: var(--syn-radius);
+  box-shadow: 0 18px 50px hsl(0 0% 0% / 0.35);
+}
+
+.pf-v5-c-login__main-header,
+.pf-v5-c-login__main-body,
+.pf-v5-c-login__main-footer {
+  background: transparent;
+}
+
+/* PF paints a 4px blue accent bar on the header — recolour it teal */
+.pf-v5-c-login__main-header {
+  border-top-color: var(--syn-primary);
+}
+
+h1#kc-page-title {
+  font-family: var(--syn-font-sans);
+  font-style: italic;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--syn-foreground);
+}
+
+/* ---- reorder: social providers ABOVE the credentials form ----------------- */
+
+.pf-v5-c-login__main-body {
+  display: flex;
+  flex-direction: column;
+}
+
+/* the inner footer (social + info) jumps above #kc-form … */
+.pf-v5-c-login__main-body > .pf-v5-c-login__main-footer {
+  order: -1;
+  padding: 0;
+}
+
+/* … while error/status alerts stay on the very top */
+.pf-v5-c-login__main-body > .pf-v5-c-alert {
+  order: -2;
+}
+
+/* hide the "Or sign in with" band (it reads wrong above the buttons) … */
+.pf-v5-c-login__main-body .pf-v5-c-login__main-footer-band:not(#kc-info) {
+  display: none;
+}
+
+/* … and draw an "or" divider between the social block and the form instead */
+.pf-v5-c-login__main-body:has(#kc-social-providers) #kc-form::before {
+  content: "or";
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 18px 0 14px;
+  font-family: var(--syn-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--syn-muted-foreground);
+}
+
+/* hairlines flanking the "or" word */
+.pf-v5-c-login__main-body:has(#kc-social-providers) #kc-form::before {
+  background:
+    linear-gradient(var(--syn-border), var(--syn-border)) left center / calc(50% - 24px) 1px no-repeat,
+    linear-gradient(var(--syn-border), var(--syn-border)) right center / calc(50% - 24px) 1px no-repeat;
+  justify-content: center;
+}
+
+/* ---- text + labels --------------------------------------------------------- */
+
+.pf-v5-c-form__label-text,
+.pf-v5-c-check__label {
+  font-family: var(--syn-font-sans);
+  font-weight: 500;
+  color: var(--syn-foreground);
+}
+
+.pf-v5-c-login__main-footer-band-item,
+.pf-v5-c-helper-text__item-text {
+  color: var(--syn-muted-foreground);
+}
+
+/* ---- inputs ----------------------------------------------------------------- */
+
+.pf-v5-c-form-control {
+  background: var(--syn-input-bg);
+  border-radius: var(--syn-radius-btn);
+}
+
+.pf-v5-c-form-control input {
+  color: var(--syn-foreground);
+  font-family: var(--syn-font-sans);
+}
+
+.pf-v5-c-form-control::before {
+  border-color: var(--syn-border);
+  border-radius: var(--syn-radius-btn);
+}
+
+.pf-v5-c-form-control::after {
+  border-bottom-color: var(--syn-primary);
+}
+
+.pf-v5-c-form-control:focus-within {
+  outline: none;
+}
+
+/* password visibility toggle */
+.pf-v5-c-button.pf-m-control {
+  color: var(--syn-muted-foreground);
+}
+
+/* checkbox */
+.pf-v5-c-check__input {
+  accent-color: var(--syn-primary);
+}
+
+/* links (forgot password, register) */
+a,
+.pf-v5-c-button.pf-m-link {
+  color: var(--syn-primary);
+}
+
+a:hover,
+.pf-v5-c-button.pf-m-link:hover {
+  color: var(--syn-primary-hover);
+}
+
+/* ---- buttons ----------------------------------------------------------------- */
+
+/* primary submit — filled teal */
+.pf-v5-c-button.pf-m-primary {
+  background: var(--syn-primary);
+  color: var(--syn-primary-foreground);
+  border-radius: var(--syn-radius-btn);
+  font-family: var(--syn-font-sans);
+  font-weight: 600;
+  box-shadow: none;
+}
+
+.pf-v5-c-button.pf-m-primary:hover,
+.pf-v5-c-button.pf-m-primary:focus {
+  background: var(--syn-primary-hover);
+  color: var(--syn-primary-foreground);
+}
+
+/* social buttons — teal outline (mirrors the app's .account__signin) */
+#kc-social-providers .pf-v5-c-button.pf-m-secondary {
+  display: flex;
+  align-items: center;
+  /* PF's pf-v5-u-justify-content-space-between utility is !important */
+  justify-content: center !important;
+  gap: 10px;
+  min-height: 40px;
+  background: transparent;
+  border: 1px solid var(--syn-primary-border);
+  border-radius: var(--syn-radius-btn);
+  color: var(--syn-primary);
+  font-family: var(--syn-font-sans);
+  font-weight: 500;
+}
+
+#kc-social-providers .pf-v5-c-button.pf-m-secondary::after {
+  border: none;
+}
+
+#kc-social-providers .pf-v5-c-button.pf-m-secondary:hover {
+  background: var(--syn-primary-tint);
+  border-color: var(--syn-primary);
+}
+
+#kc-social-providers .pf-v5-c-button.pf-m-secondary svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+  flex: none;
+}
+
+#kc-social-providers .pf-v5-u-m-auto {
+  margin: 0 !important;
+}
+
+/* ---- alerts ----------------------------------------------------------------- */
+
+.pf-v5-c-alert.pf-m-danger {
+  border-radius: var(--syn-radius-btn);
+}
+
+.pf-v5-c-alert.pf-m-danger .pf-v5-c-alert__title {
+  color: var(--syn-error);
+}
+
+/* ---- footer band (registration link etc.) ------------------------------------ */
+
+#kc-info {
+  color: var(--syn-muted-foreground);
+  font-size: 14px;
+}

@@ -1,6 +1,7 @@
 {
   "realm": "synapse",
   "displayName": "Synapse",
+  "loginTheme": "synapse",
   "enabled": true,
   "sslRequired": "external",
   "registrationAllowed": false,
