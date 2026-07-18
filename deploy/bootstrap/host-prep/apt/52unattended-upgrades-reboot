@@ -1,0 +1,17 @@
+// Automatic reboot after an unattended upgrade that requires one (added 2026-07-18).
+//
+// Before this, unattended-upgrades installed kernels but never rebooted, so a node ran an old
+// kernel indefinitely and only picked the new one up during an UNPLANNED restart — which is how
+// wk-1 came back on 7.0.0-28 after dying mid-afternoon. Taking the reboot at a known hour is
+// strictly better than discovering it at a random one.
+//
+// STAGGER THE TIME PER NODE so the cluster never loses two at once. In use:
+//   wk-1 = 03:30 · wk-2 = 04:30
+// prepare-host.sh sets it from UPGRADE_REBOOT_TIME (default 03:30).
+//
+// NOTE: this does NOT drain the node first — pods are terminated by the kubelet shutting down.
+// Acceptable for single-replica workloads with graceful shutdown, but a drain hook is the better
+// long-term answer while Postgres is pinned to one node's local storage.
+Unattended-Upgrade::Automatic-Reboot "true";
+Unattended-Upgrade::Automatic-Reboot-WithUsers "true";
+Unattended-Upgrade::Automatic-Reboot-Time "03:30";

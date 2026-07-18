@@ -85,3 +85,43 @@ manages the primary link on the home nodes.
   cannot reschedule. OOM auto-recovery shrinks the outage from hours to ~1 minute,
   but the SPOF remains by design. Keep the DR pack (`deploy/dr/`) current; a
   replicated/standby DB is out of scope for this homelab.
+
+## Node self-recovery — watchdog and reboot window (2026-07-18)
+
+Added after `wk-1` went down at 16:57 and did not return until 18:33 — **96 minutes**, during
+which `synapse.kakde.eu` was down because Postgres lives on that node's local storage.
+
+**What the logs showed, and what they ruled out.** No kernel panic, no MCE, no thermal event, no
+node-level OOM, and — decisively — *no shutdown sequence at all*: the journal stops mid-line and
+the last kernel message predates the death by ten hours. No ACPI power-button event either. That
+signature is power loss or a hard hang, not software. Two things people reach for first were
+false leads: the `panic`/`oops` grep hits are `drm panic` (a boot-time handler registration) and
+`whoopsie` (Ubuntu's crash reporter), and the kernel upgrade that day installed at 06:51 without
+rebooting — the node ran ten more hours before dying, then merely *booted into* the new kernel.
+
+**Why it stayed down.** These are bare-metal mini PCs (`wk-1` is a GMKtec NucBox K9). There is no
+hypervisor to restart them, and nothing else was configured to. That is the whole answer.
+
+Three layers now address it, and only two are in this repo:
+
+| Layer | Where | Covers |
+|---|---|---|
+| BIOS "Restore on AC Power Loss" → **Power On** | **Manual, per machine** | Power loss. Cannot be set from the OS — `fwupdmgr` reports "This system doesn't support firmware settings" on these boards. |
+| Hardware watchdog (`iTCO_wdt` + `RuntimeWatchdogSec=60`) | `modules-load/watchdog.conf`, `systemd/10-watchdog.conf` | A hard hang that stops the kernel scheduling. The board resets itself after 60s. |
+| Staggered unattended-upgrade reboot window | `apt/52unattended-upgrades-reboot` | Kernels being activated by an unplanned restart at an arbitrary time. |
+
+**Watchdog status per node.** `wk-1` runs it for real (Intel PCH TCO v6, `state=active`,
+`timeout=60`). **`wk-2` cannot**: its firmware locks the TCO off and the driver refuses to
+register, logging `unable to reset NO_REBOOT flag, device disabled by hardware/BIOS`. The config
+is installed anyway so it activates if that BIOS option is ever enabled. Deliberately no `softdog`
+fallback — a software watchdog is a kernel timer, so the very hang it would need to catch also
+stops it firing; installing one would be reassurance rather than cover.
+
+**Reboot windows are staggered** (`wk-1` 03:30, `wk-2` 04:30) so an upgrade night never takes two
+nodes at once. `prepare-host.sh` reads `UPGRADE_REBOOT_TIME` (default `03:30`).
+
+**Still open, and bigger than any of this:** `postgresql-0` is bound to `wk-1` by node-local
+storage and `synapse-go-judge` is pinned there by `nodeSelector`, so the database shares one mini
+PC with the sandbox that executes arbitrary user-submitted code. Whatever wedges that box takes
+the whole platform with it, and Kubernetes cannot reschedule around it. The watchdog shortens
+that outage; it does not remove the single point of failure.
