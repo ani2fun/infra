@@ -17,7 +17,19 @@ spec:
         app.kubernetes.io/name: synapse
         app.kubernetes.io/component: app
     spec:
-      terminationGracePeriodSeconds: 20
+      # OFF, and load-bearing. Kubernetes otherwise injects legacy Docker-link variables for every
+      # Service in the namespace — and this Service is called `synapse`, so it injects
+      # SYNAPSE_PORT=tcp://10.43.x.x:80. That collides head-on with the app's own SYNAPSE_PORT,
+      # overrides the image's 8080, and the config layer rejects it:
+      #   invalid type: found string "tcp://10.43.11.10:80", expected u16 for key "PORT"
+      # The pod then CrashLoopBackOffs. Found by booting the real image in this namespace during
+      # the cutover rehearsal. The app addresses everything by DNS, so it never wanted these.
+      enableServiceLinks: false
+      # Above the app's drain: on SIGTERM it stops accepting and finishes in-flight requests.
+      # It does NOT cover the detached judging tasks — those are reconciled at the next boot
+      # (main.rs sweeps rows unfinished for >15m and completes them as JudgeFailed), which is the
+      # only thing that also survives an OOM kill or a node failure.
+      terminationGracePeriodSeconds: 30
       # Content ships by git-sync, NOT in the image (ADR-S003/S033): the sidecar
       # pulls ani2fun/synapse-content (public, anonymous https) into a shared
       # emptyDir; the server reads SYNAPSE_ROOT=/content/current (git-sync's
@@ -46,30 +58,46 @@ spec:
                 - ALL
       containers:
         - name: synapse
-          image: ghcr.io/ani2fun/synapse:latest
+          # The Rust rebuild (ani2fun/synapse-rs) took this deploy unit over in place on
+          # 2026-07-18. The overlay's `images:` block is authoritative for the tag; this is the
+          # placeholder. The image name deliberately stays `synapse-rs` even after the repo
+          # rename, so the `synapse` package keeps holding the Scala images — that is the rollback
+          # lever, and mixing two applications under one `latest` would destroy it.
+          image: ghcr.io/ani2fun/synapse-rs:latest
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
               containerPort: 8080
           env:
-            - name: PORT
+            # Explicit, even though the image already sets it — belt and braces against the
+            # service-link collision described above (see enableServiceLinks). Stating the port
+            # the container actually listens on is worth the line regardless.
+            - name: SYNAPSE_PORT
               value: "8080"
-            # The git-sync checkout (the `current` symlink flips atomically per pull).
+            # The git-sync checkout (the `current` symlink flips atomically per pull). The image
+            # defaults SYNAPSE_ROOT to /content, which is the MOUNT, not the checkout — it must be
+            # overridden here or the catalog walks an empty directory.
             - name: SYNAPSE_ROOT
               value: /content/current
             # contentVersion = the checkout's git HEAD SHA, re-read per request
-            # (ContentCommitSha, step 34) — a sidecar pull re-indexes the catalog.
-            - name: CONTENT_AUTO_RELOAD
+            # (ContentCommitSha) — a sidecar pull re-indexes the catalog with no redeploy.
+            - name: SYNAPSE_AUTO_RELOAD
               value: "false"
-            - name: DATABASE_URL
-              value: jdbc:postgresql://postgresql.databases-prod.svc.cluster.local:5432/synapse
-            - name: DATABASE_USER
-              value: synapse
-            - name: DATABASE_PASSWORD
+            # sqlx takes ONE connection URL with the credentials inline — there is no
+            # DATABASE_USER / DATABASE_PASSWORD pair to read (that was the JDBC shape). k8s expands
+            # $(VAR) from an env var defined EARLIER in this same list, so the password stays in the
+            # secret and never appears in the manifest. Safe here because the sealed password is
+            # alphanumeric (base64 with /+= stripped) and so needs no percent-encoding.
+            - name: DB_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: synapse-db
                   key: postgres-password
+            # DELIBERATELY the UNPREFIXED name. config.rs merges the SYNAPSE_-prefixed env provider
+            # BEFORE the unprefixed ones, so a bare DATABASE_URL wins over SYNAPSE_DATABASE_URL.
+            # Setting the prefixed name while a bare one exists would lose, silently.
+            - name: DATABASE_URL
+              value: postgres://synapse:$(DB_PASSWORD)@postgresql.databases-prod.svc.cluster.local:5432/synapse
             # Synapse's OWN sandbox (deploy/apps/synapse-go-judge) — not the shared
             # go-judge: isolated concurrency budget + independently evolving toolchains.
             - name: EXECUTOR_URL
@@ -115,34 +143,43 @@ spec:
             - name: content
               mountPath: /content
               readOnly: true
-          # JVM boot + Liquibase migration need the startup grace (up to 150s).
+          # The Rust binary boots in well under a second, but it FAIL-FASTS without Postgres (the
+          # pool connect and sqlx migrate both propagate), so the budget is sized for a database
+          # that is briefly unreachable during a rollout, not for the process itself. 60s.
           startupProbe:
             httpGet:
               path: /api/health
               port: 8080
-            failureThreshold: 30
+            failureThreshold: 12
             periodSeconds: 5
+          # Readiness PINGS POSTGRES (/api/ready → select 1): a pod whose store is unreachable
+          # stops receiving traffic instead of serving errors.
           readinessProbe:
             httpGet:
-              path: /api/health
+              path: /api/ready
               port: 8080
-            initialDelaySeconds: 5
+            initialDelaySeconds: 3
             periodSeconds: 10
             timeoutSeconds: 2
             failureThreshold: 6
+          # Liveness stays SHALLOW on purpose — never point it at /api/ready. A liveness probe that
+          # fails when a dependency wobbles restarts a healthy process and turns someone else's
+          # outage into a crash loop.
           livenessProbe:
             tcpSocket:
               port: 8080
             initialDelaySeconds: 30
             periodSeconds: 30
             failureThreshold: 3
+          # Right-sized for Rust: the JVM's 1Gi ceiling and 256Mi floor were sized for a heap this
+          # binary does not have. Revisit from real usage rather than guessing further down.
           resources:
             requests:
-              cpu: 100m
-              memory: 256Mi
+              cpu: 50m
+              memory: 64Mi
             limits:
               cpu: 1000m
-              memory: 1Gi
+              memory: 256Mi
           securityContext:
             # Run the JVM as a non-root uid (step 37 hardening). The pod's fsGroup (below) makes the
             # git-sync emptyDir group-readable, so a non-root app can still read SYNAPSE_ROOT; STATIC_ROOT

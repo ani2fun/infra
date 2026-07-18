@@ -2,27 +2,39 @@
 # Seal the two runtime Secrets for synapse (deploy/apps/synapse/base/deployment.yaml):
 #
 #   synapse-db              key postgres-password — the role created by
-#                           deploy/apps/synapse/bootstrap.sql (generated fresh here
-#                           if not provided; paste the SAME value into the bootstrap SQL)
-#   synapse-keycloak-admin  keys username/password — a sealed COPY of the Keycloak
-#                           bootstrap admin for apps-prod (the canonical secret lives in
-#                           the `identity` namespace; pods can't reference it across
-#                           namespaces). Read it with
-#                           scripts/secrets/read-keycloak-admin-credentials.sh.
+#                           deploy/apps/synapse/bootstrap.sql (generated fresh here if not
+#                           provided; paste the SAME value into the bootstrap SQL).
+#                           Keep it URL-SAFE: since the Rust cutover the Deployment
+#                           interpolates it into a postgres:// URL via $(DB_PASSWORD), so a
+#                           '@' or '/' would corrupt the connection string. The generator
+#                           below already strips /+=.
+#
+#   synapse-keycloak-admin  key client-secret — the credential of the LEAST-PRIVILEGE
+#                           `synapse-admin` service-account client in the `synapse` realm
+#                           (client_credentials, scoped to realm-management:manage-users).
+#                           Read it from Keycloak with:
+#                             kcadm.sh get clients -r synapse -q clientId=synapse-admin --fields id
+#                             kcadm.sh get clients/<id>/client-secret -r synapse
+#
+# CORRECTED 2026-07-18: this used to seal `username`/`password` — a copy of the Keycloak
+# BOOTSTRAP ADMIN, which is what the app read before step 37 replaced it with the scoped
+# service-account client. The keys had drifted from the Deployment, so running this as the
+# runbook instructs would produce a Secret with the wrong keys and leave the pod in
+# CreateContainerConfigError. It also sealed a far more powerful credential than the app needs.
 #
 # Needs cluster access for the Sealed Secrets cert (WireGuard up, or run from ms-1).
 #
 # Usage:
-#   scripts/secrets/seal-synapse-secrets.sh <kc-admin-user> <kc-admin-password> [db-password]
+#   scripts/secrets/seal-synapse-secrets.sh <synapse-admin-client-secret> [db-password]
 set -euo pipefail
 
-KC_USER="${1:-}"
-KC_PASSWORD="${2:-}"
-DB_PASSWORD="${3:-}"
+KC_CLIENT_SECRET="${1:-}"
+DB_PASSWORD="${2:-}"
 
-if [ -z "$KC_USER" ] || [ -z "$KC_PASSWORD" ]; then
-  echo "Usage: $0 <kc-admin-user> <kc-admin-password> [db-password]" >&2
-  echo "  (read the admin pair with scripts/secrets/read-keycloak-admin-credentials.sh)" >&2
+if [ -z "$KC_CLIENT_SECRET" ]; then
+  echo "Usage: $0 <synapse-admin-client-secret> [db-password]" >&2
+  echo "  This is the 'synapse-admin' CLIENT secret in the 'synapse' realm — NOT the" >&2
+  echo "  Keycloak bootstrap admin password, which the app no longer uses." >&2
   exit 1
 fi
 
@@ -46,5 +58,4 @@ repo_root="$(cd "$script_dir/../.." && pwd)"
   apps-prod \
   synapse-keycloak-admin \
   "$repo_root/deploy/apps/synapse/overlays/prod/sealedsecret-keycloak-admin.yaml" \
-  "username=$KC_USER" \
-  "password=$KC_PASSWORD"
+  "client-secret=$KC_CLIENT_SECRET"

@@ -6,10 +6,12 @@ resources:
 - ingress.yaml
 - sealedsecret-db.yaml
 - sealedsecret-keycloak-admin.yaml
+# The Rust rebuild (ani2fun/synapse-rs) took this deploy unit over IN PLACE on 2026-07-18 — same
+# ArgoCD app, Service, Ingress, TLS cert and hostname. The retired Scala pin was
+#   ghcr.io/ani2fun/synapse:cde344a72a5330b981290fa91aeaba498c49c1bc
+# and that image is still in GHCR: reverting the cutover commit restores it, which IS the rollback
+# procedure. Do not prune that package while the Rust app is still settling.
 images:
-- name: ghcr.io/ani2fun/synapse
-  newName: ghcr.io/ani2fun/synapse
-  newTag: cde344a72a5330b981290fa91aeaba498c49c1bc
 - name: ghcr.io/ani2fun/synapse-rs
   newName: ghcr.io/ani2fun/synapse-rs
   newTag: 68efa4906a0e5478005f7411dfa774ee099c4af5
