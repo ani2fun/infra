@@ -2,8 +2,23 @@
 
 The complete, ordered procedure that takes **synapse.kakde.eu** from an empty cluster footprint to
 serving — including every credential retrieval/creation step. Design rationale lives in the synapse
-repo (`docs/adr-synapse/README.md`, ADR-S033); this file is the *operations* truth. Everything was
-executed and verified on 2026-07-14.
+repo; this file is the *operations* truth. Everything was executed and verified on 2026-07-14.
+
+> **The app has been Rust since 2026-07-18.** The Scala implementation was replaced **in place** by
+> the rebuild from `ani2fun/synapse-rs`: same ArgoCD app, Service, Ingress, TLS cert, hostname,
+> Postgres database, go-judge and likec4 — only the image and the env shape changed. Rollback is
+> reverting the cutover commit; `ghcr.io/ani2fun/synapse:cde344a72a5330b981290fa91aeaba498c49c1bc`
+> is still in GHCR and must not be pruned while the Rust app is settling. What changed operationally:
+>
+> - **`DATABASE_URL` is a `postgres://` URL**, not JDBC, with the password interpolated by
+>   Kubernetes via `$(DB_PASSWORD)`. There is no `DATABASE_USER`/`DATABASE_PASSWORD` pair any more,
+>   and the sealed password must stay URL-safe (the generator already strips `/+=`).
+> - **`enableServiceLinks: false` is load-bearing** — see Troubleshooting.
+> - **Readiness moved to `/api/ready`**, which pings Postgres. `/api/health` stays deliberately
+>   shallow and is what liveness and startup use.
+> - Migrations are **sqlx**, not Liquibase. The existing schema was adopted by inserting baseline
+>   rows into `_sqlx_migrations`; Liquibase's own tables remain and are inert.
+> - Resources dropped to 64Mi/256Mi — the pod idles near **6Mi**, against the JVM's 256Mi floor.
 
 ## What gets deployed (the shape)
 
@@ -304,4 +319,7 @@ keycloak-js memory (not localStorage); no secrets in the repo.
 | Sign-in fails with realm/issuer errors | Realm not imported, or the Deployment's `OIDC_ISSUER` doesn't match `https://keycloak.kakde.eu/realms/synapse`. |
 | Edge cert renewal fails later | CAA got tightened to LE-only — re-allow `pki.goog` too. |
 | LikeC4 image builds but diagrams are broken | Never name the content-repo dockerfile `Dockerfile.likec4` — likec4 parses `**/*.likec4` as model sources; it must stay `likec4.Dockerfile`. |
-| `/c4/` 404 through the domain while the likec4 pod is healthy | The app's proxy STRIPS the `/c4` prefix and the nginx image serves the SPA UNDER `/c4/` — `LIKEC4_URL` must be `http://synapse-likec4/c4` (hit + fixed on first deploy). |
+| `/c4/` 404 through the domain while the likec4 pod is healthy | The app's proxy STRIPS the `/c4` prefix and the nginx image serves the SPA UNDER `/c4/` — `LIKEC4_URL` must be `http://synapse-likec4/c4` (hit + fixed on first deploy). Separately, the trailing-slash form needed its own route in the proxy: axum's `{*rest}` wildcard doesn't match an empty remainder (fixed 2026-07-18). |
+| App CrashLoopBackOff with `expected u16 for key "PORT"` | Kubernetes injects legacy Docker-link env for every Service in the namespace, and this Service is named `synapse` — so it injects `SYNAPSE_PORT=tcp://10.43.x.x:80`, which overrides the image's `8080` and fails to parse. Keep **`enableServiceLinks: false`** on the pod spec. Found by booting the real image in `apps-prod` during the cutover rehearsal. |
+| App boots but the catalog is empty | `SYNAPSE_ROOT` must be `/content/**current**` (git-sync's symlink), not the `/content` mount — the image's own default is the mount. |
+| Pod `CreateContainerConfigError` right after re-sealing secrets | `seal-synapse-secrets.sh` takes the **`synapse-admin` client secret** (sealed as key `client-secret`), not the Keycloak bootstrap admin pair. It used to seal `username`/`password`, which no longer matches the Deployment (corrected 2026-07-18). |
