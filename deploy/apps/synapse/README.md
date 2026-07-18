@@ -182,12 +182,77 @@ cluster at all — the git-sync sidecar picks them up within a minute.
 2. SSL/TLS mode: **Full (strict)** (zone-wide already).
 3. **CAA records must allow BOTH `letsencrypt.org` AND `pki.goog`** — an LE-only CAA silently
    breaks Cloudflare's edge-certificate renewal (a documented cortex incident).
-4. **Cache Rule** (this is what makes far-region reading fast): match
-   `synapse.kakde.eu/api/synapse/*` OR `synapse.kakde.eu/api/blog/*` → *Eligible for cache*,
-   respect origin headers. The origin stamps those responses
-   `public, max-age=60, stale-while-revalidate=600` (matched to the git-sync cadence), so PoPs
-   serve lesson JSON locally. Hashed `/assets/*` (immutable, 1y) and `/media/*` (1h) edge-cache by
-   default once proxied; HTML and every other `/api/*` route stay DYNAMIC.
+4. **Cache Rule** for the content API — see below. Hashed `/assets/*` (immutable, 1y) and
+   `/media/*` (1h) edge-cache by default once proxied; HTML and every other `/api/*` route stay
+   DYNAMIC.
+
+### The content cache rule
+
+**Applied and verified 2026-07-18.** Without it Cloudflare leaves `/api/*` uncached
+(`cf-cache-status: DYNAMIC`), so every reader in every region pulls lesson JSON from the homelab
+origin even though the app already marks it cacheable.
+
+Dashboard → zone `kakde.eu` → **Caching → Cache Rules → Create rule**:
+
+| Field | Value |
+|---|---|
+| Name | `synapse content API` |
+| Expression (Edit expression) | `(http.host eq "synapse.kakde.eu" and (starts_with(http.request.uri.path, "/api/synapse/") or starts_with(http.request.uri.path, "/api/blog")))` |
+| Cache eligibility | **Eligible for cache** |
+| Edge TTL | **Use cache-control header if present** (respect origin) |
+| Browser TTL | **Respect origin TTL** |
+
+**Why respect the origin instead of setting a TTL here.** The app stamps
+`public, max-age=60, stale-while-revalidate=600` on exactly these routes
+(`platform/content_cache_control.rs`), so the policy lives in code, next to the routes it applies
+to, and is covered by tests. Typing a TTL into the dashboard would fork that decision into a second
+place that no test can see. `max-age=60` matches the git-sync pull cadence — there is no point
+caching prose longer than the interval at which it can change — and the 10-minute
+stale-while-revalidate is what keeps far PoPs warm without ever making a reader wait for a
+revalidation.
+
+**Why the path list is narrow, and must stay narrow.** These two prefixes are the only public,
+user-independent GETs in the API. Widening the expression to `/api/` would put `/api/me`,
+`/api/submissions/*` and `/api/admin/*` in a shared edge cache — one user's identity or submission
+history served to another. The app's own middleware is the second line of defence (it stamps GET
+200s on those two prefixes only, never `/api/me`, `/api/run`, submissions or tutor), but the rule
+should never rely on it.
+
+**Verifying it.** Two GETs to the same path; the second should not be `MISS`:
+
+```bash
+for i in 1 2; do
+  curl -s -D - -o /dev/null https://synapse.kakde.eu/api/synapse/index \
+    | grep -iE 'cf-cache-status|cache-control|^age:'
+done
+```
+
+Observed after applying: `cache-control: public, max-age=60, stale-while-revalidate=600`,
+`age: 268`, `cf-cache-status: UPDATING` — i.e. the edge held a copy well past `max-age` and was
+refreshing it in the background, which is exactly what stale-while-revalidate buys.
+
+Confirm the private routes are still excluded — all five must report `DYNAMIC`:
+
+```bash
+for p in /api/me /api/auth/config /api/health /api/ready /api/submissions/<id>; do
+  curl -s -D - -o /dev/null "https://synapse.kakde.eu$p" | grep -i cf-cache-status
+done
+```
+
+**Use `curl -D -` (GET), never `curl -I` (HEAD).** The cache-control middleware only stamps `GET`,
+so a HEAD probe shows no `cache-control` at all and looks exactly like a broken rule. This wasted
+time once already.
+
+**Reading `cf-cache-status`:** `MISS` = not in this PoP yet (normal on first request, and each PoP
+warms separately) · `HIT` = served from edge · `UPDATING` = served stale inside the
+stale-while-revalidate window while refreshing · `EXPIRED` = past both windows, revalidated ·
+`DYNAMIC` = not eligible, which is the correct answer for every route outside the rule.
+
+**Propagation after a content push.** git-sync pulls within 60s, then the edge holds the old copy
+for up to `max-age` (60s) and may serve it stale for up to 10 minutes more while revalidating. So
+worst case is roughly 60s + 60s before new prose is universally live, with stale reads possible for
+a further 10 minutes. For an urgent correction, purge that URL from **Caching → Configuration →
+Purge Cache**; there is no need to redeploy or restart anything.
 
 ## 7. Submit allowlist
 
