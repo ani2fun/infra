@@ -9,4 +9,4 @@ resources:
 images:
 - name: ghcr.io/ani2fun/synapse-rs
   newName: ghcr.io/ani2fun/synapse-rs
-  newTag: f83e38710c7879ff11c811cecfce30ebbcc12707
+  newTag: 5a4cd20e1e85cccaa8764586785b92d07c46b915
