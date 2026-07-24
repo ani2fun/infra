@@ -6,6 +6,7 @@ resources:
 - ingress.yaml
 - sealedsecret-db.yaml
 - sealedsecret-keycloak-admin.yaml
+- sealedsecret-github.yaml
 images:
 - name: ghcr.io/ani2fun/synapse-rs
   newName: ghcr.io/ani2fun/synapse-rs

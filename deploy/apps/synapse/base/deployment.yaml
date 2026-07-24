@@ -135,6 +135,25 @@ spec:
             # Who may open the /admin panel and manage the allowlist (step 35):
             # comma-separated Keycloak usernames — with the GitHub IdP these ARE
             # the GitHub handles.
+
+            # In-app prose editing (ADR-RS004): readers propose lesson edits from /edit and the
+            # server opens a pull request against the content repo. `github` is what makes it real
+            # — the default is `dry-run`, which validates and records but never writes, so the
+            # feature cannot start pushing on a deploy alone. Grants are managed from /admin
+            # (content_editor_allowlist), so adding an editor needs no redeploy.
+            - name: CONTENT_FORGE
+              value: github
+            - name: CONTENT_REPO
+              value: ani2fun/synapse-content
+            - name: CONTENT_REPO_BRANCH
+              value: main
+            # Fine-grained PAT scoped to CONTENT_REPO alone: contents:write + pull_requests:write.
+            # Never logged. Empty/expired degrades LOUDLY to a dry run rather than failing silently.
+            - name: GITHUB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: synapse-github
+                  key: token
             - name: ADMIN_USERS
               value: ani2fun
             # TUTOR_ENABLED stays unset: the coach is local-only (ADR-S025) — the
