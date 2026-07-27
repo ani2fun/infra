@@ -83,6 +83,18 @@ spec:
             # (ContentCommitSha) — a sidecar pull re-indexes the catalog with no redeploy.
             - name: SYNAPSE_AUTO_RELOAD
               value: "false"
+            # SATELLITE BOOKS (ADR-RS005). Books live in their own repositories now, registered
+            # from /admin rather than declared here — the app cannot add a git-sync sidecar to
+            # itself at runtime, so it fetches their tarballs from the GitHub API instead and
+            # unpacks them under this cache. An emptyDir is deliberate: the layout is
+            # <id>/<sha>/ with a `current` symlink, every commit is re-fetchable, and a cold boot
+            # simply refetches. Nothing here is a system of record.
+            - name: SYNAPSE_CONTENT_CACHE
+              value: /content-cache
+            # The reconcile cadence, matching the git-sync sidecar's so the whole library moves on
+            # one clock — and the one `content_cache_control` max-age is tuned to. 0 disables it.
+            - name: SYNAPSE_CONTENT_SYNC_SECONDS
+              value: "60"
             # sqlx takes ONE connection URL with the credentials inline — there is no
             # DATABASE_USER / DATABASE_PASSWORD pair to read (that was the JDBC shape). k8s expands
             # $(VAR) from an env var defined EARLIER in this same list, so the password stays in the
@@ -143,11 +155,16 @@ spec:
             # (content_editor_allowlist), so adding an editor needs no redeploy.
             - name: CONTENT_FORGE
               value: github
+            # The PRIMARY repository — the spine. Satellites carry their own, from the registry;
+            # this is the default the editor shows and the target for anything the spine still owns.
             - name: CONTENT_REPO
               value: ani2fun/synapse-content
             - name: CONTENT_REPO_BRANCH
               value: main
-            # Fine-grained PAT scoped to CONTENT_REPO alone: contents:write + pull_requests:write.
+            # Fine-grained PAT scoped to EVERY content repository — the spine and each registered
+            # satellite: contents:write + pull_requests:write, plus the reads the content fetcher
+            # makes (public repos would fetch anonymously, but the token lifts the rate limit from
+            # 60/hour to 5000, which is what makes a 60s loop across several repos affordable).
             # Never logged. Empty/expired degrades LOUDLY to a dry run rather than failing silently.
             - name: GITHUB_TOKEN
               valueFrom:
@@ -162,6 +179,9 @@ spec:
             - name: content
               mountPath: /content
               readOnly: true
+            # WRITEABLE, unlike the git-sync volume: the fetcher unpacks here itself.
+            - name: content-cache
+              mountPath: /content-cache
           # The Rust binary boots in well under a second, but it FAIL-FASTS without Postgres (the
           # pool connect and sqlx migrate both propagate), so the budget is sized for a database
           # that is briefly unreachable during a rollout, not for the process itself. 60s.
@@ -240,6 +260,10 @@ spec:
                 - ALL
       volumes:
         - name: content
+          emptyDir: {}
+        # Satellite checkouts. Sized by the books registered, and reclaimed on every pod restart —
+        # the fetcher repopulates it before serving.
+        - name: content-cache
           emptyDir: {}
       securityContext:
         # fsGroup makes the shared `content` emptyDir group-owned (65532) + setgid, so the non-root app
