@@ -173,6 +173,17 @@ spec:
                   key: token
             - name: ADMIN_USERS
               value: ani2fun
+            # OFF until this container has the memory to draw diagrams. Server-side ```d2
+            # pre-rendering runs the d2 engine in a Node worker — a 21 MB wasm module plus a Go
+            # runtime whose linear memory alone dwarfs the 256Mi limit below. It OOMs mid-render,
+            # the response dies, and the edge turns the dropped connection into a 502 on exactly
+            # the diagram-heavy lessons the feature was built for. Every other page stays up,
+            # because nothing else touches the engine — which is what makes this a quiet failure
+            # rather than an obvious one. With this off the diagrams render in the browser again:
+            # slow (a multi-MB engine download) but correct. Raise the limit, confirm the node has
+            # the headroom, then delete this.
+            - name: SYNAPSE_D2_PRERENDER
+              value: "off"
             # TUTOR_ENABLED stays unset: the coach is local-only (ADR-S025) — the
             # chat route never mounts and the client shows "coming soon".
           volumeMounts:
