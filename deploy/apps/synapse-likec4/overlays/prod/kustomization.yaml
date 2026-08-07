@@ -6,4 +6,4 @@ resources:
 images:
 - name: ghcr.io/ani2fun/synapse-likec4
   newName: ghcr.io/ani2fun/synapse-likec4
-  newTag: fe4764e99f5178596b68d9592adc8717cbbc6af9
+  newTag: b287eeb3bc35853796e937703dad1fc6224f4323
