@@ -173,17 +173,23 @@ spec:
                   key: token
             - name: ADMIN_USERS
               value: ani2fun
-            # OFF until this container has the memory to draw diagrams. Server-side ```d2
-            # pre-rendering runs the d2 engine in a Node worker — a 21 MB wasm module plus a Go
-            # runtime whose linear memory alone dwarfs the 256Mi limit below. It OOMs mid-render,
-            # the response dies, and the edge turns the dropped connection into a 502 on exactly
-            # the diagram-heavy lessons the feature was built for. Every other page stays up,
-            # because nothing else touches the engine — which is what makes this a quiet failure
-            # rather than an obvious one. With this off the diagrams render in the browser again:
-            # slow (a multi-MB engine download) but correct. Raise the limit, confirm the node has
-            # the headroom, then delete this.
+            # ON: this container now READS drawn ```d2 figures, it does not draw them. A content
+            # repo compiles its own fences in CI and commits `_media/d2/<hash>.svg`; the page
+            # looks that file up and inlines it, measured at 147 MB of RSS against the 256Mi
+            # limit below.
+            #
+            # It was off because the container used to COMPILE. The d2 engine is a 21 MB wasm
+            # module plus a Go runtime, and one 23-diagram lesson peaked at 5.2 GB — it OOM'd
+            # mid-render, the response died, and the edge turned the dropped connection into a
+            # 502 on exactly the diagram-heavy lessons the feature was built for, while every
+            # other page stayed up because nothing else touched the engine. That is what made it
+            # a quiet failure rather than an obvious one.
+            #
+            # The flag is therefore safe now but its MEANING changed with the image. Do not roll
+            # back past 0c50378 while it is on: in an older image this same value says "compile
+            # here", which is the 5.2 GB path. Turn it off first, then roll back.
             - name: SYNAPSE_D2_PRERENDER
-              value: "off"
+              value: "on"
             # TUTOR_ENABLED stays unset: the coach is local-only (ADR-S025) — the
             # chat route never mounts and the client shows "coming soon".
           volumeMounts:
