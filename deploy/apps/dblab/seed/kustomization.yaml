@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: dblab
+
+resources:
+  - jobs.yaml
+
+# Seed scripts live as real files (lintable, diffable) and are mounted into the Jobs from a
+# generated ConfigMap. The generator's content hash means editing a seed file produces a new
+# ConfigMap name, so a re-run can never silently mount a stale script.
+configMapGenerator:
+  - name: dblab-seed
+    files:
+      - files/postgres-seed.sql
+      - files/mongo-seed.js
+      - files/redis-seed.sh
+      - files/elasticsearch-seed.sh
+      - files/cassandra-seed.cql
+      - files/dynamodb-seed.sh
+      - files/kafka-seed.sh

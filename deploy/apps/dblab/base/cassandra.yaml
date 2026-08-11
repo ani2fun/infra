@@ -1,0 +1,126 @@
+# Cassandra with PasswordAuthenticator ENABLED.
+#
+# Resolved from Bytebase's driver source: backend/plugin/db/cassandra/cassandra.go always sets
+#   cluster.Authenticator = gocql.PasswordAuthenticator{Username, Password}
+# unconditionally, so the connection form expects real credentials. Running the default
+# AllowAllAuthenticator would leave those fields meaningless.
+#
+# The official image exposes no CASSANDRA_AUTHENTICATOR env var — its entrypoint only handles
+# LISTEN_ADDRESS, BROADCAST_ADDRESS, RPC_ADDRESS, NUM_TOKENS, CLUSTER_NAME, SEEDS, DC, RACK and
+# ENDPOINT_SNITCH. So cassandra.yaml is patched in place before the entrypoint runs.
+#
+# Verified against cassandra:5 (2026-08-10): that image still uses the FLAT
+#   authenticator: AllowAllAuthenticator
+# form, not the nested `authenticator: {class_name: ...}` introduced elsewhere in the 5.x line,
+# so a single-line sed is correct here. Re-check this if the image tag is ever bumped.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: cassandra-data
+  labels:
+    app.kubernetes.io/name: cassandra
+    app.kubernetes.io/part-of: dblab
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cassandra
+  labels:
+    app.kubernetes.io/name: cassandra
+    app.kubernetes.io/part-of: dblab
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cassandra
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cassandra
+        app.kubernetes.io/part-of: dblab
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: wk-1
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: cassandra
+          image: cassandra:5
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+              sed -i 's/^authenticator: .*/authenticator: PasswordAuthenticator/' /etc/cassandra/cassandra.yaml
+              sed -i 's/^authorizer: .*/authorizer: CassandraAuthorizer/'          /etc/cassandra/cassandra.yaml
+              grep -E '^(authenticator|authorizer):' /etc/cassandra/cassandra.yaml
+              exec docker-entrypoint.sh cassandra -f
+          env:
+            - name: CASSANDRA_CLUSTER_NAME
+              value: dblab
+            - name: CASSANDRA_DC
+              value: dc1
+            - name: CASSANDRA_RACK
+              value: rack1
+            - name: CASSANDRA_ENDPOINT_SNITCH
+              value: GossipingPropertyFileSnitch
+            - name: MAX_HEAP_SIZE
+              value: 1G
+            - name: HEAP_NEWSIZE
+              value: 256M
+          ports:
+            - name: cql
+              containerPort: 9042
+          # Cassandra bootstraps slowly, and with PasswordAuthenticator the very first login is
+          # slower still (it has to create the system_auth keyspace). 40 x 10s = ~6.5 minutes
+          # before giving up; the default superuser cassandra/cassandra is what we probe with.
+          # timeoutSeconds is load-bearing: cqlsh is a Python program and cannot start inside
+          # the 1s default, which would restart the container forever.
+          startupProbe:
+            exec:
+              command: ["cqlsh", "-u", "cassandra", "-p", "cassandra", "-e", "describe keyspaces"]
+            periodSeconds: 15
+            timeoutSeconds: 10
+            failureThreshold: 30
+          readinessProbe:
+            exec:
+              command: ["cqlsh", "-u", "cassandra", "-p", "cassandra", "-e", "describe keyspaces"]
+            periodSeconds: 20
+            timeoutSeconds: 10
+          livenessProbe:
+            tcpSocket: { port: cql }
+            initialDelaySeconds: 180
+            periodSeconds: 30
+          resources:
+            requests: { cpu: 300m, memory: 1536Mi }
+            limits:   { cpu: "2",  memory: 3Gi }
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/cassandra
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: cassandra-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cassandra
+  labels:
+    app.kubernetes.io/name: cassandra
+    app.kubernetes.io/part-of: dblab
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: cassandra
+  ports:
+    - name: cql
+      port: 9042
+      targetPort: cql

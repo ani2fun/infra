@@ -1,0 +1,147 @@
+# Auto-stop: scale the lab to zero once it has been up for its TTL (4 hours by default).
+#
+# WHY: the lab costs ~3.8 GiB of wk-1's RAM whether or not anyone is using it, and the whole
+# point of it is short evaluation sessions. Forgetting to run lab-stop.sh is the normal case,
+# not the exception — so the cluster reclaims the memory on its own.
+#
+# HOW IT DECIDES: lab-up.sh writes a ConfigMap `dblab-lifecycle` containing `shutdown-after`,
+# an absolute epoch timestamp. This job compares it to now. Using an absolute deadline rather
+# than "how long has the pod been running" means a pod restart or reschedule does not silently
+# extend the session, and epoch seconds mean the CronJob's UTC schedule and your local timezone
+# can never disagree.
+#
+# No ConfigMap means no deadline, and the job does nothing. So a lab brought up by hand
+# (kubectl apply -k) is never stopped by surprise, and disabling auto-stop for a long session is
+# just:  kubectl -n dblab delete configmap dblab-lifecycle
+#
+# Everything here is namespace-scoped on purpose — no ClusterRole is needed, which is why the
+# deadline lives in a ConfigMap rather than as a Namespace annotation.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: dblab-autostop
+  labels:
+    app.kubernetes.io/name: dblab-autostop
+    app.kubernetes.io/part-of: dblab
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: dblab-autostop
+  labels:
+    app.kubernetes.io/name: dblab-autostop
+    app.kubernetes.io/part-of: dblab
+rules:
+  # Read the deadline, and delete it once acted on so the job does not re-scale every 15
+  # minutes for the rest of the day.
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "delete"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list"]
+  # `kubectl scale` writes the scale subresource, not the Deployment itself.
+  - apiGroups: ["apps"]
+    resources: ["deployments/scale"]
+    verbs: ["get", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: dblab-autostop
+  labels:
+    app.kubernetes.io/name: dblab-autostop
+    app.kubernetes.io/part-of: dblab
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: dblab-autostop
+subjects:
+  - kind: ServiceAccount
+    name: dblab-autostop
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: dblab-autostop
+  labels:
+    app.kubernetes.io/name: dblab-autostop
+    app.kubernetes.io/part-of: dblab
+spec:
+  # Every 15 minutes, so the lab outlives its TTL by at most a quarter hour. Cheap: the job is
+  # a couple of API calls and exits in about a second.
+  schedule: "*/15 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 2
+  # If the cluster was down over a scheduled run, do not stampede through the backlog.
+  startingDeadlineSeconds: 300
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      ttlSecondsAfterFinished: 3600
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: dblab-autostop
+            app.kubernetes.io/part-of: dblab
+        spec:
+          serviceAccountName: dblab-autostop
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: autostop
+              # alpine/kubectl, NOT rancher/kubectl: the latter is distroless and has no shell,
+              # so this job died with `exec: "/bin/sh": no such file or directory` before it ran
+              # a single line. Tag tracks the cluster's 1.35 line.
+              image: alpine/kubectl:1.35.4
+              # kubectl writes a discovery cache under $HOME; with readOnlyRootFilesystem it
+              # needs somewhere writable or every run logs cache warnings.
+              env:
+                - name: HOME
+                  value: /tmp
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -eu
+                  ns=dblab
+
+                  deadline="$(kubectl -n "$ns" get configmap dblab-lifecycle \
+                    -o jsonpath='{.data.shutdown-after}' 2>/dev/null || true)"
+
+                  if [ -z "$deadline" ]; then
+                    echo "no dblab-lifecycle deadline set — auto-stop disabled, nothing to do"
+                    exit 0
+                  fi
+
+                  now="$(date +%s)"
+                  if [ "$now" -lt "$deadline" ]; then
+                    echo "lab still within its window — $(( (deadline - now) / 60 )) minute(s) remaining"
+                    exit 0
+                  fi
+
+                  echo "deadline passed ($(( (now - deadline) / 60 )) minute(s) ago) — scaling the lab to zero"
+                  kubectl -n "$ns" scale deployment --all --replicas=0
+
+                  # Drop the deadline so this is a one-shot. lab-up.sh writes a fresh one on the
+                  # next start; without this the job would pointlessly re-scale every 15 minutes.
+                  kubectl -n "$ns" delete configmap dblab-lifecycle --ignore-not-found
+                  echo "lab stopped. PVCs and seed data are untouched — restart with lab-up.sh"
+              resources:
+                requests: { cpu: 10m, memory: 32Mi }
+                limits:   { cpu: 200m, memory: 128Mi }
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: [ALL]
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: tmp
+              emptyDir: {}

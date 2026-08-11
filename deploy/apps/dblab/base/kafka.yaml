@@ -1,0 +1,147 @@
+# Kafka in KRaft mode — no ZooKeeper. A single node acting as both broker and controller.
+#
+# NOT managed by Bytebase (it is not a database). Kafbat UI is the client, on its own port.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: kafka-data
+  labels:
+    app.kubernetes.io/name: kafka
+    app.kubernetes.io/part-of: dblab
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kafka
+  labels:
+    app.kubernetes.io/name: kafka
+    app.kubernetes.io/part-of: dblab
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kafka
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: kafka
+        app.kubernetes.io/part-of: dblab
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: wk-1
+      securityContext:
+        fsGroup: 1000
+      containers:
+        - name: kafka
+          image: apache/kafka:4.3.1
+          env:
+            - name: KAFKA_NODE_ID
+              value: "1"
+            - name: KAFKA_PROCESS_ROLES
+              value: "broker,controller"
+            - name: KAFKA_LISTENERS
+              value: "PLAINTEXT://:9092,CONTROLLER://:9093"
+            # Clients are told to reach the broker by its Service DNS name. Advertising
+            # localhost here would make Kafbat connect once and then fail every subsequent
+            # metadata-directed request.
+            - name: KAFKA_ADVERTISED_LISTENERS
+              value: "PLAINTEXT://kafka.dblab.svc.cluster.local:9092"
+            - name: KAFKA_LISTENER_SECURITY_PROTOCOL_MAP
+              value: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT"
+            - name: KAFKA_CONTROLLER_LISTENER_NAMES
+              value: "CONTROLLER"
+            - name: KAFKA_INTER_BROKER_LISTENER_NAME
+              value: "PLAINTEXT"
+            - name: KAFKA_CONTROLLER_QUORUM_VOTERS
+              value: "1@localhost:9093"
+            # Single node: every replication factor must be 1 or topic creation hangs forever
+            # waiting for replicas that will never exist.
+            - name: KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR
+              value: "1"
+            - name: KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR
+              value: "1"
+            - name: KAFKA_TRANSACTION_STATE_LOG_MIN_ISR
+              value: "1"
+            - name: KAFKA_SHARE_COORDINATOR_STATE_TOPIC_REPLICATION_FACTOR
+              value: "1"
+            - name: KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS
+              value: "0"
+            - name: KAFKA_LOG_DIRS
+              value: "/var/lib/kafka/data"
+            # Fixed cluster id so a restart re-uses the formatted log dir instead of refusing
+            # to start against storage formatted with a different id.
+            - name: CLUSTER_ID
+              value: "dblab-kraft-cluster-0001"
+          ports:
+            - name: kafka
+              containerPort: 9092
+            - name: controller
+              containerPort: 9093
+          # timeoutSeconds is MANDATORY on these two. It defaults to 1 second, and every
+          # kafka-*.sh helper is a JVM program that needs several seconds just to reach main() —
+          # so with the default the probe is killed before it can ever succeed, the container is
+          # restarted, and the pod loops forever while the log cheerfully says
+          # "Kafka Server started". Observed as 10 restarts before this was set.
+          startupProbe:
+            exec:
+              command: ["sh", "-c", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1"]
+            periodSeconds: 20
+            timeoutSeconds: 15
+            failureThreshold: 15
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1"]
+            periodSeconds: 30
+            timeoutSeconds: 15
+          livenessProbe:
+            tcpSocket: { port: kafka }
+            initialDelaySeconds: 90
+            periodSeconds: 30
+          resources:
+            requests: { cpu: 200m, memory: 512Mi }
+            limits:   { cpu: "2",  memory: 1536Mi }
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/kafka
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: kafka-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka
+  labels:
+    app.kubernetes.io/name: kafka
+    app.kubernetes.io/part-of: dblab
+spec:
+  type: ClusterIP
+  # BREAKS A STARTUP DEADLOCK — do not remove.
+  #
+  # The broker advertises itself as kafka.dblab.svc.cluster.local:9092. Any real Kafka client,
+  # including the readiness probe, connects to the bootstrap address, receives that advertised
+  # address in the metadata response, and then reconnects to it. But a Service only routes to
+  # READY pods, so before the probe passes the ClusterIP has no endpoints, the reconnect fails
+  # with DisconnectException, and the probe can never pass. The pod stays 0/1 forever even
+  # though the log says "Kafka Server started".
+  #
+  # publishNotReadyAddresses lets the Service resolve to the pod while it is still starting,
+  # which lets the probe complete and the pod become ready — after which everything behaves
+  # normally. The alternative, weakening the probe to a bare TCP check, would just hide the
+  # problem rather than fix it.
+  publishNotReadyAddresses: true
+  selector:
+    app.kubernetes.io/name: kafka
+  ports:
+    - name: kafka
+      port: 9092
+      targetPort: kafka

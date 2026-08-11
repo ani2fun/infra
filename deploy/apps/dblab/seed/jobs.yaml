@@ -1,0 +1,302 @@
+# One idempotent seed Job per engine.
+#
+# Every Job WAITS for its engine using that engine's own client rather than sleeping a fixed
+# number of seconds — a sleep is a guess that is either wrong or wasteful, and Cassandra in
+# particular can take minutes. backoffLimit gives each Job room to retry if the engine is still
+# coming up when the poll loop's own patience runs out.
+#
+# The Jobs are applied SEPARATELY from base/ (scripts/lab-up.sh does it after rollouts settle)
+# because a completed Job's pod template is immutable — re-applying one in place fails. lab-up.sh
+# deletes the previous Jobs first.
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: seed-postgres
+  labels: { app.kubernetes.io/part-of: dblab, app.kubernetes.io/component: seed }
+spec:
+  backoffLimit: 10
+  template:
+    metadata:
+      labels: { app.kubernetes.io/part-of: dblab, app.kubernetes.io/component: seed }
+    spec:
+      restartPolicy: OnFailure
+      nodeSelector: { kubernetes.io/hostname: wk-1 }
+      containers:
+        - name: seed
+          image: postgres:17
+          env:
+            - name: PGHOST
+              value: postgres
+            - name: PGUSER
+              valueFrom: { secretKeyRef: { name: dblab-credentials, key: postgres-user } }
+            - name: PGPASSWORD
+              valueFrom: { secretKeyRef: { name: dblab-credentials, key: postgres-password } }
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -e
+              until pg_isready -q; do echo "waiting for postgres..."; sleep 3; done
+              psql -d labdb -v ON_ERROR_STOP=1 -f /seed/postgres-seed.sql
+          volumeMounts: [{ name: seed, mountPath: /seed }]
+      volumes:
+        - name: seed
+          configMap: { name: dblab-seed }
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: seed-mongodb
+  labels: { app.kubernetes.io/part-of: dblab, app.kubernetes.io/component: seed }
+spec:
+  backoffLimit: 10
+  template:
+    metadata:
+      labels: { app.kubernetes.io/part-of: dblab, app.kubernetes.io/component: seed }
+    spec:
+      restartPolicy: OnFailure
+      nodeSelector: { kubernetes.io/hostname: wk-1 }
+      containers:
+        - name: seed
+          image: mongo:8
+          env:
+            - name: MONGO_USER
+              valueFrom: { secretKeyRef: { name: dblab-credentials, key: mongo-user } }
+            - name: MONGO_PASSWORD
+              valueFrom: { secretKeyRef: { name: dblab-credentials, key: mongo-password } }
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -e
+              URI="mongodb://$MONGO_USER:$MONGO_PASSWORD@mongodb:27017/?authSource=admin"
+              until mongosh "$URI" --quiet --eval 'db.adminCommand("ping").ok' >/dev/null 2>&1; do
+                echo "waiting for mongodb..."; sleep 3
+              done
+              mongosh "$URI" --quiet --file /seed/mongo-seed.js
+          volumeMounts: [{ name: seed, mountPath: /seed }]
+      volumes:
+        - name: seed
+          configMap: { name: dblab-seed }
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: seed-redis
+  labels: { app.kubernetes.io/part-of: dblab, app.kubernetes.io/component: seed }
+spec:
+  backoffLimit: 10
+  template:
+    metadata:
+      labels: { app.kubernetes.io/part-of: dblab, app.kubernetes.io/component: seed }
+    spec:
+      restartPolicy: OnFailure
+      nodeSelector: { kubernetes.io/hostname: wk-1 }
+      containers:
+        - name: seed
+          image: redis:8-alpine
+          env:
+            - name: REDIS_HOST
+              value: redis
+            - name: REDIS_PASSWORD
+              valueFrom: { secretKeyRef: { name: dblab-credentials, key: redis-password } }
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -e
+              until redis-cli -h redis -a "$REDIS_PASSWORD" --no-auth-warning ping 2>/dev/null | grep -q PONG; do
+                echo "waiting for redis..."; sleep 3
+              done
+              sh /seed/redis-seed.sh
+          volumeMounts: [{ name: seed, mountPath: /seed }]
+      volumes:
+        - name: seed
+          configMap: { name: dblab-seed }
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: seed-elasticsearch
+  labels: { app.kubernetes.io/part-of: dblab, app.kubernetes.io/component: seed }
+spec:
+  backoffLimit: 10
+  template:
+    metadata:
+      labels: { app.kubernetes.io/part-of: dblab, app.kubernetes.io/component: seed }
+    spec:
+      restartPolicy: OnFailure
+      nodeSelector: { kubernetes.io/hostname: wk-1 }
+      containers:
+        - name: seed
+          image: curlimages/curl:8.11.1
+          env:
+            - name: ES_HOST
+              value: http://elasticsearch:9200
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -e
+              until curl -sf "$ES_HOST/_cluster/health" >/dev/null; do
+                echo "waiting for elasticsearch..."; sleep 5
+              done
+              sh /seed/elasticsearch-seed.sh
+          volumeMounts: [{ name: seed, mountPath: /seed }]
+      volumes:
+        - name: seed
+          configMap: { name: dblab-seed }
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: seed-cassandra
+  labels: { app.kubernetes.io/part-of: dblab, app.kubernetes.io/component: seed }
+spec:
+  # Cassandra is the slowest thing here — first boot creates system_auth before it will accept
+  # a login at all. More retries, not a longer sleep.
+  backoffLimit: 20
+  template:
+    metadata:
+      labels: { app.kubernetes.io/part-of: dblab, app.kubernetes.io/component: seed }
+    spec:
+      restartPolicy: OnFailure
+      nodeSelector: { kubernetes.io/hostname: wk-1 }
+      containers:
+        - name: seed
+          image: cassandra:5
+          env:
+            - name: CQLSH_USER
+              valueFrom: { secretKeyRef: { name: dblab-credentials, key: cassandra-user } }
+            - name: CQLSH_PASSWORD
+              valueFrom: { secretKeyRef: { name: dblab-credentials, key: cassandra-password } }
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -e
+              n=0
+              until cqlsh cassandra -u "$CQLSH_USER" -p "$CQLSH_PASSWORD" -e "describe keyspaces" >/dev/null 2>&1; do
+                n=$((n+1)); [ "$n" -gt 60 ] && { echo "cassandra never became ready"; exit 1; }
+                echo "waiting for cassandra... ($n)"; sleep 10
+              done
+              cqlsh cassandra -u "$CQLSH_USER" -p "$CQLSH_PASSWORD" -f /seed/cassandra-seed.cql
+          volumeMounts: [{ name: seed, mountPath: /seed }]
+      volumes:
+        - name: seed
+          configMap: { name: dblab-seed }
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: seed-dynamodb
+  labels: { app.kubernetes.io/part-of: dblab, app.kubernetes.io/component: seed }
+spec:
+  backoffLimit: 10
+  template:
+    metadata:
+      labels: { app.kubernetes.io/part-of: dblab, app.kubernetes.io/component: seed }
+    spec:
+      restartPolicy: OnFailure
+      nodeSelector: { kubernetes.io/hostname: wk-1 }
+      containers:
+        - name: seed
+          image: amazon/aws-cli:2.31.9
+          env:
+            - name: DDB_ENDPOINT
+              value: http://dynamodb-local:8000
+            - name: AWS_ACCESS_KEY_ID
+              value: dummy
+            - name: AWS_SECRET_ACCESS_KEY
+              value: dummy
+            - name: AWS_DEFAULT_REGION
+              value: eu-central-1
+          # The image's entrypoint is `aws` itself, so it must be overridden to run a shell.
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+              until aws --endpoint-url "$DDB_ENDPOINT" dynamodb list-tables >/dev/null 2>&1; do
+                echo "waiting for dynamodb-local..."; sleep 3
+              done
+              sh /seed/dynamodb-seed.sh
+          volumeMounts: [{ name: seed, mountPath: /seed }]
+      volumes:
+        - name: seed
+          configMap: { name: dblab-seed }
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: seed-kafka
+  labels: { app.kubernetes.io/part-of: dblab, app.kubernetes.io/component: seed }
+spec:
+  backoffLimit: 10
+  template:
+    metadata:
+      labels: { app.kubernetes.io/part-of: dblab, app.kubernetes.io/component: seed }
+    spec:
+      restartPolicy: OnFailure
+      nodeSelector: { kubernetes.io/hostname: wk-1 }
+      containers:
+        - name: seed
+          image: apache/kafka:4.3.1
+          env:
+            - name: KAFKA_BOOTSTRAP
+              value: kafka:9092
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -e
+              until /opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server "$KAFKA_BOOTSTRAP" >/dev/null 2>&1; do
+                echo "waiting for kafka..."; sleep 5
+              done
+              sh /seed/kafka-seed.sh
+          volumeMounts: [{ name: seed, mountPath: /seed }]
+      volumes:
+        - name: seed
+          configMap: { name: dblab-seed }
+---
+# RabbitMQ is not in the brief's seed list, but an empty management UI teaches nothing — so two
+# queues with a few messages, created through the management HTTP API.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: seed-rabbitmq
+  labels: { app.kubernetes.io/part-of: dblab, app.kubernetes.io/component: seed }
+spec:
+  backoffLimit: 10
+  template:
+    metadata:
+      labels: { app.kubernetes.io/part-of: dblab, app.kubernetes.io/component: seed }
+    spec:
+      restartPolicy: OnFailure
+      nodeSelector: { kubernetes.io/hostname: wk-1 }
+      containers:
+        - name: seed
+          image: curlimages/curl:8.11.1
+          env:
+            - name: RABBIT_USER
+              valueFrom: { secretKeyRef: { name: dblab-credentials, key: rabbitmq-user } }
+            - name: RABBIT_PASSWORD
+              valueFrom: { secretKeyRef: { name: dblab-credentials, key: rabbitmq-password } }
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -e
+              API="http://rabbitmq:15672/api"
+              AUTH="-u $RABBIT_USER:$RABBIT_PASSWORD"
+              until curl -sf $AUTH "$API/overview" >/dev/null; do
+                echo "waiting for rabbitmq management api..."; sleep 5
+              done
+              # %2F is the default vhost "/" — declaring a queue is idempotent.
+              for q in orders customer-events; do
+                curl -sf $AUTH -X PUT "$API/queues/%2F/$q" \
+                  -H 'Content-Type: application/json' \
+                  -d '{"durable":true}' >/dev/null
+                echo "declared queue $q"
+              done
+              i=1
+              while [ "$i" -le 10 ]; do
+                curl -sf $AUTH -X POST "$API/exchanges/%2F/amq.default/publish" \
+                  -H 'Content-Type: application/json' \
+                  -d "{\"properties\":{},\"routing_key\":\"orders\",\"payload\":\"{\\\"orderId\\\":\\\"ORD-$(printf '%05d' $i)\\\",\\\"status\\\":\\\"paid\\\"}\",\"payload_encoding\":\"string\"}" >/dev/null
+                i=$((i + 1))
+              done
+              echo "published 10 messages to orders"

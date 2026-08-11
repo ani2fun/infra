@@ -1,0 +1,66 @@
+# Kafbat UI — the browser client for Kafka. Stateless, so no PVC.
+#
+# ClusterIP only and NO authentication of its own, which is precisely why it is not exposed
+# through Traefik. Reach it with:
+#   kubectl -n dblab port-forward svc/kafbat-ui 8081:8080
+# then open http://localhost:8081
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kafbat-ui
+  labels:
+    app.kubernetes.io/name: kafbat-ui
+    app.kubernetes.io/part-of: dblab
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kafbat-ui
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: kafbat-ui
+        app.kubernetes.io/part-of: dblab
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: wk-1
+      containers:
+        - name: kafbat-ui
+          image: ghcr.io/kafbat/kafka-ui:v1.0.0
+          env:
+            - name: KAFKA_CLUSTERS_0_NAME
+              value: dblab
+            - name: KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS
+              value: kafka.dblab.svc.cluster.local:9092
+            - name: DYNAMIC_CONFIG_ENABLED
+              value: "true"
+          ports:
+            - name: http
+              containerPort: 8080
+          startupProbe:
+            httpGet: { path: /actuator/health, port: http }
+            periodSeconds: 10
+            failureThreshold: 24
+          readinessProbe:
+            httpGet: { path: /actuator/health, port: http }
+            periodSeconds: 15
+            timeoutSeconds: 5
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits:   { cpu: "1",  memory: 768Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafbat-ui
+  labels:
+    app.kubernetes.io/name: kafbat-ui
+    app.kubernetes.io/part-of: dblab
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: kafbat-ui
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

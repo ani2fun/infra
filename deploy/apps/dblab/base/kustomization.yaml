@@ -1,0 +1,25 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: dblab
+
+# No `labels:` block — includeSelectors would rewrite the podSelectors in networkpolicy.yaml.
+# Labels are written explicitly on every object instead.
+
+resources:
+  - namespace.yaml
+  - postgres.yaml
+  - mongodb.yaml
+  - redis.yaml
+  - elasticsearch.yaml
+  - cassandra.yaml
+  - dynamodb-local.yaml
+  - kafka.yaml
+  - kafbat-ui.yaml
+  - rabbitmq.yaml
+  - networkpolicy.yaml
+  - autostop.yaml
+
+# NOTE: the dblab-credentials Secret is deliberately NOT here. It is generated with random
+# values by scripts/lab-up.sh on first run and left in the cluster, so no lab password is ever
+# committed. See that script for how to read the values back.

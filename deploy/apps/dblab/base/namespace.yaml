@@ -1,0 +1,13 @@
+# The disposable polyglot database lab.
+#
+# Deliberately NOT Argo-tracked. Argo's selfHeal + prune would recreate this namespace the
+# moment lab-nuke.sh deleted it, which defeats the entire point. It is applied by hand through
+# deploy/apps/dblab/scripts/lab-up.sh, the same way keycloak is.
+#
+# Everything in here holds obviously-fake seed data and is safe to destroy at any time.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dblab
+  labels:
+    app.kubernetes.io/part-of: dblab

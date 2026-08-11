@@ -1,0 +1,110 @@
+# Elasticsearch, single node, SECURITY DISABLED.
+#
+# Resolved from Bytebase's driver source rather than by trial and error: in
+# backend/plugin/db/elasticsearch/elasticsearch.go the basic-auth header is only attached when
+# a credential string is present ("Only add basic auth header if it exists"), so Bytebase
+# connects happily to a cluster with xpack.security off. That makes the simplest option also
+# the correct one for a throwaway lab — no bootstrap password dance, no enrolment tokens.
+#
+# vm.max_map_count must be >= 262144. wk-1 is already at 1048576 via /etc/sysctl.d/10-map-count.conf,
+# so no initContainer or privileged sysctl is needed here. NOTE: that conf file is not yet
+# tracked in deploy/bootstrap/host-prep/sysctl/, so a rebuilt wk-1 would come back at the 65530
+# default and this pod would fail to start.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: elasticsearch-data
+  labels:
+    app.kubernetes.io/name: elasticsearch
+    app.kubernetes.io/part-of: dblab
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: elasticsearch
+  labels:
+    app.kubernetes.io/name: elasticsearch
+    app.kubernetes.io/part-of: dblab
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: elasticsearch
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: elasticsearch
+        app.kubernetes.io/part-of: dblab
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: wk-1
+      # The image runs as uid 1000 and needs to own its data dir; local-path hands it out
+      # root-owned.
+      securityContext:
+        fsGroup: 1000
+      containers:
+        - name: elasticsearch
+          image: elasticsearch:8.19.19
+          env:
+            - name: discovery.type
+              value: single-node
+            - name: xpack.security.enabled
+              value: "false"
+            - name: xpack.security.enrollment.enabled
+              value: "false"
+            # Heap must stay well under the container limit — the JVM needs headroom for
+            # off-heap buffers, and being OOM-killed by the kernel is far messier than an
+            # in-JVM OutOfMemoryError.
+            - name: ES_JAVA_OPTS
+              value: "-Xms1g -Xmx1g"
+            - name: cluster.name
+              value: dblab
+          ports:
+            - name: http
+              containerPort: 9200
+          # Elasticsearch is slow to start; give it up to 3 minutes before declaring failure.
+          startupProbe:
+            httpGet: { path: /_cluster/health, port: http }
+            periodSeconds: 10
+            failureThreshold: 18
+          readinessProbe:
+            httpGet: { path: /_cluster/health, port: http }
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            tcpSocket: { port: http }
+            periodSeconds: 20
+          resources:
+            requests: { cpu: 300m, memory: 1536Mi }
+            limits:   { cpu: "2",  memory: 2560Mi }
+          volumeMounts:
+            - name: data
+              mountPath: /usr/share/elasticsearch/data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: elasticsearch-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: elasticsearch
+  labels:
+    app.kubernetes.io/name: elasticsearch
+    app.kubernetes.io/part-of: dblab
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: elasticsearch
+  ports:
+    - name: http
+      port: 9200
+      targetPort: http
