@@ -378,32 +378,83 @@ privileges are what protect it, and those were confirmed to deny both reads and 
 
 ---
 
-## 6. The open question: Redis and Cassandra query experience
+## 6. Redis and Cassandra query experience — ANSWERED
 
-**This is the one thing the exercise was most meant to answer, and it is NOT VERIFIED.**
+Exercised in the browser on 2026-08-10 against the seeded lab. The two engines land in very
+different places, and the answer for one of them is not close.
 
-Judging Bytebase's query UX requires logging into the UI, which requires the GitHub OAuth app that
-only the account owner can create. Everything is staged and waiting: both engines are running,
-seeded and reachable, and the connection details are in
-[OPERATIONS.md §1.4](OPERATIONS.md).
+The SQL editor works fine through oauth2-proxy — no websocket problem, queries return in 4–9 ms.
 
-The seed data was shaped specifically to stress these two:
+### 6.1 Redis — thin. Worse than `redis-cli`.
 
-- **Redis** — deliberately mixed types: 20+ strings, three hashes, a list, a set, a sorted set,
-  and a key with a TTL. If Bytebase's Redis view only renders strings, that will be obvious
-  immediately.
-- **Cassandra** — a compound primary key (partition `customer_id`, clustering `order_id DESC`)
-  and a `list<text>` column. If the UI flattens the key structure or cannot render collections,
-  that will show up too.
+**The schema browser is literally empty.** Connect to a Redis database and the object panel
+shows `<Empty>`. No keys, no key types, no namespace tree — nothing. There is no browsing at
+all; you must already know what keys exist.
 
-What is worth judging once logged in:
+**Every reply collapses into a single `Value` column of stringified Go.** Not "types are hard to
+read" — the type structure is discarded entirely:
 
-1. Does the Redis view distinguish types, or coerce everything to strings?
-2. Can it browse a sorted set by score, or only dump keys?
-3. Does Cassandra's schema browser show the partition/clustering split, or a flat column list?
-4. Does it warn on an unbounded `SELECT *` against a Cassandra table, or silently issue a query
-   that would be catastrophic on a real cluster?
-5. Is the SQL editor usable through oauth2-proxy at all — does it use websockets?
+| Command | What Bytebase shows |
+|---|---|
+| `HGETALL customer:1` | `map[country:NL email:customer1@example.invalid name:Customer 1 orders:4]` |
+| `ZRANGE top_customers 0 4 WITHSCORES` | `[Customer 14 18]`, `[Customer 1 37]`, … |
+
+The hash is Go's `fmt` map representation in one cell — no field/value columns, and a field
+containing a space would be genuinely ambiguous. The sorted set fuses member and score into one
+bracketed string, so scores cannot be sorted, filtered or read as numbers.
+
+`redis-cli` does better than this: it at least prints hash fields on alternate lines and scores
+separately. The web UI is strictly a downgrade on output, offering only a browser tab in exchange.
+
+The seed data was built to expose exactly this — strings, three hashes, a list, a set, a sorted
+set and a TTL key. **The type variety is invisible in the UI.**
+
+Separately, Redis's 16 logical databases each appear as their own entry in the database picker,
+burying the one that has data. Mitigated by capping the engine at `--databases 2`
+(deploy/apps/dblab/base/redis.yaml), but note Bytebase caches the list — an instance sync is
+required before the stale db2–db15 entries disappear.
+
+### 6.2 Cassandra — genuinely good, with two small gaps
+
+Everything that matters works:
+
+- **Schema browser is real**: `Tables → orders_by_customer → Columns`, with accurate CQL types —
+  `int`, `text`, `timestamp`, `decimal`, and **`list<text>` shown correctly** rather than
+  flattened to a string.
+- **Results are properly columnar**, one column per projected field.
+- **Collections render as JSON**: `["SKU-0004","SKU-0005","SKU-0006"]`.
+- **`decimal` keeps its precision** — `480.60`, not a mangled float. Worth checking explicitly,
+  since decimal-to-float is a common silent corruption in database UIs.
+- **Clustering order is preserved** — rows come back `order_id DESC` within each partition, which
+  is what the table declares.
+
+Two gaps, neither fatal:
+
+1. **Partition and clustering keys are indistinguishable.** `customer_id` (partition) and
+   `order_id` (clustering) both get the same generic key icon. For Cassandra that distinction is
+   the single most important thing about a table — it determines what queries are possible — and
+   the UI does not convey it.
+2. **No warning on an unbounded partition scan.** `SELECT ... FROM orders_by_customer` with no
+   `WHERE` ran silently; on a real multi-node cluster that is a full scan. Bytebase does apply
+   its own 1000-row limit, which caps the damage but does not teach the anti-pattern.
+
+Also cosmetic: table metadata reports `Row count estimate 0`, `Data size 0 B` for a table with 20
+rows — Cassandra does not expose those cheaply, so the panel shows zeros rather than omitting them.
+
+### 6.3 Verdict
+
+**Cassandra: yes.** The schema browser and result rendering are good enough to use as a daily
+client. Know that the key-type distinction is not shown and that nothing stops you writing a
+cluster-wide scan.
+
+**Redis: no.** Bytebase adds nothing over `redis-cli` and actively loses formatting. There is no
+key browsing, and typed data is reduced to stringified Go. Keep using `redis-cli` (recipe in
+[OPERATIONS.md §1.3](OPERATIONS.md)); register Redis in Bytebase only if having every engine in
+one list is worth more than usable output.
+
+That pattern — excellent for SQL-shaped engines, thin for the rest — is the honest summary of
+Bytebase here. Postgres and Cassandra are well served; Redis is a checkbox; DynamoDB (§2.1)
+does not work at all.
 
 ---
 
@@ -425,5 +476,7 @@ For a single operator that is a reasonable trade. The moment a second person nee
 honest options are Enterprise or a different tool. Worth running the 14-day trial before deciding
 — but start it when there is time to evaluate properly, not now.
 
-**Recommendation:** keep using it, answer §6 at the first login, and revisit the Enterprise
+**Recommendation:** adopt it as the standard client for the SQL-shaped engines — Postgres and
+Cassandra are well served (§6). Do not treat it as a universal client: Redis is worse than
+`redis-cli`, and DynamoDB does not work at all against a local endpoint. Revisit the Enterprise
 question only if a second user ever needs access.
