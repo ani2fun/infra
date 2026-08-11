@@ -41,5 +41,18 @@ namespaces:
   - name: monitoring
     purpose: observability stack (VictoriaMetrics, vmagent, node-exporter, kube-state-metrics, Grafana)
 
+  - name: bytebase
+    purpose: Bytebase database client, gated by oauth2-proxy against the `bytebase` Keycloak realm
+    labels:
+      # Declared on the Namespace object in deploy/apps/bytebase/base/namespace.yaml rather than
+      # applied by label-access.sh, which only knows about apps-prod.
+      kakde.eu/postgresql-access: "true"
+
+  - name: dblab
+    purpose: >-
+      disposable polyglot database lab (postgres, mongodb, redis, elasticsearch, cassandra,
+      dynamodb-local, kafka, kafbat-ui, rabbitmq). Fake seed data only; safe to destroy.
+      NOT Argo-managed — created and removed by deploy/apps/dblab/scripts/lab-*.sh.
+
   - name: nettest
     purpose: network testing namespace
