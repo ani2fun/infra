@@ -1,0 +1,124 @@
+# Bytebase — the browser-based database client.
+#
+# Its OWN state (registered instances, users, settings, issue history) lives in the shared
+# cluster Postgres as database bytebase_meta, via PG_URL. That is deliberate: it puts Bytebase's
+# metadata inside the existing DR backup scope, because scripts/dr/postgres-backup.sh discovers
+# databases dynamically. Instance registration is UI-only on the free tier, so losing that
+# metadata means re-registering every instance by hand.
+#
+# The PVC below is NOT the metadata store — it is Bytebase's working data directory
+# (/var/opt/bytebase). Small, but kept as a real volume rather than emptyDir so anything the
+# binary caches there (including a licence, if a trial is ever activated) survives a restart.
+#
+# Access is gated by oauth2-proxy in front of this pod; nothing reaches it directly. See
+# oauth2-proxy-deployment.yaml and networkpolicy.yaml.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bytebase
+  labels:
+    app.kubernetes.io/name: bytebase
+    app.kubernetes.io/part-of: bytebase
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  # RWO local-path cannot be mounted by an old and a new pod at once.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: bytebase
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: bytebase
+        app.kubernetes.io/part-of: bytebase
+    spec:
+      # Pinned by hostname so the local-path PVC binds deterministically and the intent is
+      # visible in the manifest — no out-of-band `kubectl label` step on a rebuild.
+      nodeSelector:
+        kubernetes.io/hostname: wk-1
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: bytebase
+          image: bytebase/bytebase:3.21.0
+          imagePullPolicy: IfNotPresent
+          args:
+            # Must match the public URL exactly, or OAuth and webhook flows build broken
+            # links. This is the URL Traefik terminates TLS for.
+            - --external-url=https://bytebase.kakde.eu
+            - --port=8080
+            - --data=/var/opt/bytebase
+          env:
+            # postgresql://bytebase_meta:<password>@postgresql.databases-prod.svc.cluster.local:5432/bytebase_meta
+            - name: PG_URL
+              valueFrom:
+                secretKeyRef:
+                  name: bytebase-db
+                  key: pg-url
+
+            # --- DynamoDB Local credentials -------------------------------------------------
+            # The DynamoDB instance form in the UI offers ONLY host and port. Verified in
+            # frontend/src/components/instance/DataSourceForm.tsx: `showMainFields` excludes
+            # DYNAMODB (so no username/password), `showAuthTypeRadio` excludes it too (so the
+            # AWS_RDS_IAM option cannot be selected), and the Region input renders only when
+            # that option IS selected. There is therefore no way to type a region or an access
+            # key for DynamoDB at all.
+            #
+            # Without credentials, backend/plugin/db/util/connection.go falls through to the
+            # AWS default chain, which ends at EC2 instance metadata — absent in Kubernetes —
+            # and fails with "no EC2 IMDS role found ... context deadline exceeded".
+            #
+            # These env vars are the documented first step of that same default chain, so the
+            # SDK picks them up cleanly. Note GetAWSConnectionConfig passes
+            # config.WithRegion(dataSource.Region); an empty region is ignored by the SDK
+            # rather than overriding AWS_REGION, which is why setting it here works.
+            #
+            # Dummy values are correct: DynamoDB Local accepts any credentials, and there is no
+            # real AWS account in play. If a genuine AWS DynamoDB is ever registered here, these
+            # would apply to it too — revisit then.
+            - name: AWS_ACCESS_KEY_ID
+              value: dummy
+            - name: AWS_SECRET_ACCESS_KEY
+              value: dummy
+            - name: AWS_REGION
+              value: eu-central-1
+          ports:
+            - name: http
+              containerPort: 8080
+          # First boot runs schema migrations against bytebase_meta, so the startup budget is
+          # generous (30 x 5s = 150s) while readiness stays tight afterwards.
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 5
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 20
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+          volumeMounts:
+            - name: data
+              mountPath: /var/opt/bytebase
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: bytebase-data

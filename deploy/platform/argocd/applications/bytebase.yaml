@@ -1,0 +1,29 @@
+# Bytebase is DURABLE platform tooling — it holds credentials to the production Postgres — so
+# unlike the dblab lab it is GitOps-managed and self-heals.
+#
+# NOT YET ACTIVE: Argo syncs from GitHub, so this only works once deploy/apps/bytebase/ is
+# committed and pushed to main. Until then the manifests are applied directly with
+#   kubectl apply -k deploy/apps/bytebase/overlays/prod
+# Applying this Application before the push would just leave it permanently degraded.
+#
+# The Namespace object ships inside the kustomize base (the monitoring app's pattern) rather
+# than relying on CreateNamespace=true, because it carries the kakde.eu/postgresql-access label
+# that the Postgres NetworkPolicy gates on.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: bytebase
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/ani2fun/infra.git
+    targetRevision: main
+    path: deploy/apps/bytebase/overlays/prod
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: bytebase
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

@@ -1,0 +1,19 @@
+# Bytebase's working data directory. Deliberately small: the state that matters (instances,
+# users, settings, issue history) is in Postgres via PG_URL, not here.
+#
+# local-path is node-local and unreplicated, so this binds to whichever node the pod lands on
+# — deployment.yaml pins wk-1 by hostname to keep that deterministic.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: bytebase-data
+  labels:
+    app.kubernetes.io/name: bytebase
+    app.kubernetes.io/part-of: bytebase
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 5Gi

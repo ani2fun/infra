@@ -1,0 +1,49 @@
+{
+  "realm": "bytebase",
+  "displayName": "Bytebase",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "accessTokenLifespan": 300,
+  "groups": [
+    {
+      "name": "bytebase-admins",
+      "path": "/bytebase-admins"
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "bytebase-proxy",
+      "name": "Bytebase oauth2-proxy",
+      "description": "Confidential client for the oauth2-proxy that gates bytebase.kakde.eu. Keycloak generates its secret on import; read it back and seal it into bytebase-oauth2-proxy (key client-secret) — see bootstrap.sql.",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": ["https://bytebase.kakde.eu/oauth2/callback"],
+      "attributes": {
+        "post.logout.redirect.uris": "https://bytebase.kakde.eu/*"
+      },
+      "protocolMappers": [
+        {
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "consentRequired": false,
+          "config": {
+            "full.path": "false",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "introspection.token.claim": "true",
+            "claim.name": "groups"
+          }
+        }
+      ]
+    }
+  ]
+}

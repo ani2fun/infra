@@ -1,0 +1,132 @@
+# oauth2-proxy — the access gate in front of Bytebase.
+#
+# WHY THIS EXISTS: Bytebase's own OIDC SSO is an Enterprise-plan feature (Community has no SSO
+# at all). So Keycloak cannot be wired into Bytebase directly on this licence. Instead this
+# proxy sits in front and refuses to forward anything until Keycloak has authenticated the
+# caller AND confirmed they are in the bytebase-admins group.
+#
+# Consequence, by design: there are TWO logins. Keycloak/GitHub here, then Bytebase's own local
+# account behind it. Bytebase never learns your Keycloak identity.
+#
+# THE ACCESS POLICY IS --allowed-groups. Neither the GitHub OAuth app nor the realm restricts
+# who may authenticate — any GitHub account can authorize an OAuth app and get a realm user
+# created by first-broker-login. They simply land outside bytebase-admins and are refused here.
+# Manage membership with scripts/secrets/grant-bytebase-admin.sh.
+#
+# Revived from the retired whoami demo (git show 36d9411^:deploy/apps/whoami/base/
+# oauth2-proxy-deployment.yaml), with the credential-passing flags INVERTED — see below.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bytebase-oauth2-proxy
+  labels:
+    app.kubernetes.io/name: bytebase-oauth2-proxy
+    app.kubernetes.io/part-of: bytebase
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: bytebase-oauth2-proxy
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: bytebase-oauth2-proxy
+        app.kubernetes.io/part-of: bytebase
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: wk-1
+      terminationGracePeriodSeconds: 20
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: oauth2-proxy
+          image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.3
+          imagePullPolicy: IfNotPresent
+          args:
+            - --provider=oidc
+            - --oidc-issuer-url=https://keycloak.kakde.eu/realms/bytebase
+            - --redirect-url=https://bytebase.kakde.eu/oauth2/callback
+            - --upstream=http://bytebase.bytebase.svc.cluster.local:80
+            - --http-address=0.0.0.0:4180
+
+            # THE GATE. Membership of this Keycloak group is the whole access policy.
+            # The flag is SINGULAR and repeatable (--allowed-group); there is no
+            # --allowed-groups, and passing it makes oauth2-proxy exit immediately.
+            #
+            # The `groups` claim is emitted by a group-membership protocol mapper defined on
+            # the bytebase-proxy client itself (see keycloak-realm-prod.json) — NOT by a
+            # `groups` scope. Keycloak ships no such scope, and asking for one would fail the
+            # authorization request with invalid_scope. The claim name matches
+            # --oidc-groups-claim, which already defaults to "groups".
+            - --allowed-group=bytebase-admins
+            - --scope=openid email profile
+
+            # Behind Traefik: trust X-Forwarded-* so redirect URLs are built as https://
+            # against the public host rather than the pod's own address.
+            #
+            # oauth2-proxy warns that without --trusted-proxy-ip every source IP is trusted to
+            # supply X-Forwarded-*. That is acceptable here only because networkpolicy.yaml
+            # already restricts who can reach :4180 to the traefik namespace — the policy is
+            # doing the job the CIDR list would.
+            - --reverse-proxy=true
+            - --cookie-secure=true
+
+            # Keycloak advertises S256; without this oauth2-proxy silently skips PKCE.
+            - --code-challenge-method=S256
+
+            # Only one identity provider is configured, so skip the pointless
+            # "Sign in with OpenID Connect" interstitial and go straight to Keycloak.
+            - --skip-provider-button=true
+
+            # Any authenticated member of the group is fine; the group IS the allowlist.
+            - --email-domain=*
+
+            # Deliberately DO NOT forward credentials upstream. Bytebase runs its own login;
+            # handing it a Keycloak bearer token or a synthesised `Authorization: Basic`
+            # header only risks confusing its session handling. The proxy's job here is to
+            # decide whether the request happens at all, nothing more.
+            - --pass-basic-auth=false
+            - --pass-access-token=false
+            - --pass-authorization-header=false
+          env:
+            - name: OAUTH2_PROXY_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: bytebase-oauth2-proxy
+                  key: client-id
+            - name: OAUTH2_PROXY_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: bytebase-oauth2-proxy
+                  key: client-secret
+            - name: OAUTH2_PROXY_COOKIE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: bytebase-oauth2-proxy
+                  key: cookie-secret
+          ports:
+            - name: http
+              containerPort: 4180
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]

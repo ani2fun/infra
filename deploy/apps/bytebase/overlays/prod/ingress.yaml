@@ -1,0 +1,35 @@
+# Public entry point. Note the backend is the PROXY, never the Bytebase Service — that is what
+# makes Keycloak unavoidable.
+#
+# All three Traefik markers are required in this cluster. Without
+# traefik.ingress.kubernetes.io/router.tls, HTTPS returns a Traefik 404 even though the
+# certificate issues correctly.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: bytebase
+  labels:
+    app.kubernetes.io/name: bytebase
+    app.kubernetes.io/part-of: bytebase
+  annotations:
+    kubernetes.io/ingress.class: traefik
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    cert-manager.io/cluster-issuer: letsencrypt-prod-dns01
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - bytebase.kakde.eu
+      secretName: bytebase-kakde-eu-tls
+  rules:
+    - host: bytebase.kakde.eu
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: bytebase-oauth2-proxy
+                port:
+                  number: 4180

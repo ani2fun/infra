@@ -1,0 +1,12 @@
+# The kakde.eu/postgresql-access label is what gets this namespace through the default-deny
+# NetworkPolicy in front of the shared cluster Postgres
+# (deploy/platform/postgresql/5-networkpolicy.yaml). It is declared here rather than added by
+# deploy/platform/postgresql/label-access.sh — that script only knows about apps-prod, and a
+# label applied out-of-band would be lost on a rebuild.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: bytebase
+  labels:
+    kakde.eu/postgresql-access: "true"
+    app.kubernetes.io/part-of: bytebase

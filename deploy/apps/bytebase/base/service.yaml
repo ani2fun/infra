@@ -1,0 +1,17 @@
+# ClusterIP only. The sole route in is Traefik -> oauth2-proxy -> here; this Service is never
+# the backend of an Ingress.
+apiVersion: v1
+kind: Service
+metadata:
+  name: bytebase
+  labels:
+    app.kubernetes.io/name: bytebase
+    app.kubernetes.io/part-of: bytebase
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: bytebase
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

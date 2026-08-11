@@ -1,0 +1,80 @@
+# Default-deny ingress, then two explicit allows. Same shape as
+# deploy/platform/postgresql/5-networkpolicy.yaml.
+#
+# Ingress only — egress is deliberately unrestricted, because Bytebase's whole job is to reach
+# out to database engines: the shared Postgres in databases-prod and every engine in dblab.
+#
+# No carve-out is needed for kubelet probes: httpGet probes originate on the node and are not
+# subject to pod-network ingress policy under Calico here.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: bytebase-default-deny-ingress
+  labels:
+    app.kubernetes.io/part-of: bytebase
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+---
+# Reaching the auth gate.
+#
+# Traefik runs with hostNetwork: true on ctb-edge-1, so its traffic does NOT originate from a
+# pod in the traefik namespace — it leaves the node and arrives from that node's Calico VXLAN
+# tunnel address (10.42.102.128 today). A namespaceSelector therefore never matches it, and a
+# default-deny silently turns every request into a Traefik 504 after 30s. That is exactly what
+# happened on first deploy.
+#
+# The pod CIDR is used rather than pinning the tunnel address because Calico reassigns those on
+# node rejoin, and a NetworkPolicy that breaks on rebuild is worse than a slightly broad one.
+# The namespaceSelector is kept so this still works if Traefik ever stops using hostNetwork.
+#
+# Breadth is acceptable HERE specifically: this endpoint is an authentication gate that already
+# faces the public internet through Traefik. Reaching it without a Keycloak session gets you a
+# redirect to Keycloak and nothing else. The rule that actually protects data is the next one.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: bytebase-allow-traefik-to-oauth2-proxy
+  labels:
+    app.kubernetes.io/part-of: bytebase
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: bytebase-oauth2-proxy
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: traefik
+        - ipBlock:
+            cidr: 10.42.0.0/16
+      ports:
+        - protocol: TCP
+          port: 4180
+---
+# ...and the proxy is the only thing allowed to talk to Bytebase. This is what makes the gate
+# non-bypassable from inside the cluster: without it, any pod could hit bytebase:80 directly
+# and skip Keycloak entirely.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: bytebase-allow-proxy-to-app
+  labels:
+    app.kubernetes.io/part-of: bytebase
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: bytebase
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: bytebase-oauth2-proxy
+      ports:
+        - protocol: TCP
+          port: 8080

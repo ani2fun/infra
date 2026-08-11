@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# No `labels:` block on purpose. kustomize's includeSelectors: true rewrites podSelectors in
+# NetworkPolicies, which would silently break the proxy-to-app rule in networkpolicy.yaml.
+# Labels are written explicitly on each object instead — same reasoning as
+# deploy/apps/synapse/base/kustomization.yaml.
+
+resources:
+  - namespace.yaml
+  - pvc.yaml
+  - deployment.yaml
+  - service.yaml
+  - oauth2-proxy-deployment.yaml
+  - oauth2-proxy-service.yaml
+  - networkpolicy.yaml

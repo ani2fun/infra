@@ -1,0 +1,17 @@
+# The ONLY Service in this namespace that an Ingress points at. Everything reaching Bytebase
+# passes through here first.
+apiVersion: v1
+kind: Service
+metadata:
+  name: bytebase-oauth2-proxy
+  labels:
+    app.kubernetes.io/name: bytebase-oauth2-proxy
+    app.kubernetes.io/part-of: bytebase
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: bytebase-oauth2-proxy
+  ports:
+    - name: http
+      port: 4180
+      targetPort: http
