@@ -91,6 +91,9 @@ echo "==> installing sysctl files"
 install -m 0644 "$ROOT/sysctl/99-k3s-calico.conf" /etc/sysctl.d/99-k3s-calico.conf
 # OOM auto-recovery on every node (self-heal instead of wedging — see 20-oom-resilience.conf).
 install -m 0644 "$ROOT/sysctl/20-oom-resilience.conf" /etc/sysctl.d/20-oom-resilience.conf
+# Raised mmap-region ceiling. Elasticsearch (deploy/apps/dblab) refuses to start below 262144,
+# and the Ubuntu default is 65530 — see 10-map-count.conf.
+install -m 0644 "$ROOT/sysctl/10-map-count.conf" /etc/sysctl.d/10-map-count.conf
 
 # Reuse the wireguard sysctl from ../wireguard/. If the source is not
 # present (e.g. the operator only copied host-prep/), warn but continue;
