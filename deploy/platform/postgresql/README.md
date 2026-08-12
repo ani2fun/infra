@@ -20,9 +20,10 @@ exposed publicly; **not** managed by Argo CD (one-shot bootstrap).
 | `2-secret.yaml` | Superuser password + app DB name/user/password (placeholders -- edit before apply) |
 | `3-init-configmap.yaml` | First-init script: create app role + DB + grants |
 | `4-services.yaml` | `postgresql-hl` (headless, StatefulSet identity) + `postgresql` (ClusterIP) |
-| `5-networkpolicy.yaml` | Default-deny + allow from labeled namespaces |
+| `5-networkpolicy.yaml` | Default-deny + allow from labeled namespaces + host access from wk-1 |
 | `6-statefulset.yaml` | Postgres 17.9 single replica with 80Gi PVC, probes, node selector |
 | `label-access.sh` | Helper: stamps the node label and the `apps-prod` access label |
+| `scripts/pg-tunnel.sh` | Opens an SSH tunnel from your workstation to the live pod |
 | `docs/` | Legacy docs folder; content merged into this README |
 
 The init ConfigMap runs **only on first PVC initialization**. Changing
@@ -80,6 +81,61 @@ Expected: `current_database = appdb`, `current_user = appuser`.
 - Database: `appdb` (or whatever you set in `2-secret.yaml`)
 - User: `appuser`
 - Password: from `2-secret.yaml`
+
+## Host-network access
+
+To reach the database from a workstation -- local `psql`, a GUI client, a
+migration tool -- open an SSH tunnel:
+
+```bash
+deploy/platform/postgresql/scripts/pg-tunnel.sh
+```
+
+It forwards `localhost:15432` to the live pod and stays in the foreground;
+Ctrl-C closes it. Then, in another shell:
+
+```bash
+psql -h 127.0.0.1 -p 15432 -U appuser -d appdb
+```
+
+`pg_hba.conf` ends with `host all all all scram-sha-256`, so a tunnelled
+client authenticates with the same password as an in-cluster one.
+
+The script resolves the pod IP at run time via `ms-1`. Do not hardcode it --
+Calico assigns a fresh pod IP on every reschedule, and a stale value fails as
+a connection timeout that reads like a network fault rather than a bad address.
+
+Environment overrides, all optional:
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `SSH_HOST` | `root@172.27.15.11` | Tunnel endpoint -- wk-1 on the cluster VLAN |
+| `KUBECTL_HOST` | `ms-1` | Control-plane node used for the pod-IP lookup |
+| `NAMESPACE` | `databases-prod` | Namespace holding the StatefulSet |
+| `LOCAL_PORT` | `15432` | Local listen port |
+
+From a workstation that is not on the `172.27.15.0/24` cluster VLAN, point at
+wk-1's LAN address instead:
+
+```bash
+SSH_HOST=wk-1 deploy/platform/postgresql/scripts/pg-tunnel.sh
+```
+
+**The tunnel must terminate on wk-1.** wk-1 hosts the pod, so its traffic is
+never encapsulated, and `postgresql-allow-from-wk1-host` admits both of wk-1's
+host addresses by `ipBlock`. Routing via ms-1 does **not** work: that traffic
+crosses the Calico VXLAN overlay and arrives with ms-1's tunnel address as the
+inner source, which no `ipBlock` covers. `postgresql-allow-from-ms1-host` looks
+like it grants exactly this and is a no-op -- see the comments in
+`5-networkpolicy.yaml`.
+
+For a one-off query, `kubectl exec` bypasses NetworkPolicy entirely and needs
+no tunnel:
+
+```bash
+kubectl -n databases-prod exec -it postgresql-0 -- sh -lc \
+  'PGPASSWORD="$APP_DB_PASSWORD" psql -U "$APP_DB_USER" -d "$APP_DB_NAME"'
+```
 
 ## Backup and restore
 

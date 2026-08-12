@@ -32,3 +32,69 @@ spec:
       ports:
         - protocol: TCP
           port: 5432
+---
+# Host-network access from wk-1, the node that hosts the pod.
+#
+# Host-network clients (`ssh -L` tunnels, root `psql` on the node) have no pod
+# identity, so podSelector/namespaceSelector can never match them -- ipBlock is
+# the only rule type that can. Two CIDRs because either address can be the
+# source depending on the route: 172.27.15.11 is wk-1 on the cluster VLAN,
+# 192.168.15.3 is wk-1 on the LAN. See deploy/inventory/nodes.yaml.
+#
+# scripts/pg-tunnel.sh depends on this policy.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: postgresql-allow-from-wk1-host
+  namespace: databases-prod
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: postgresql
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - ipBlock:
+            cidr: 172.27.15.11/32
+        - ipBlock:
+            cidr: 192.168.15.3/32
+      ports:
+        - protocol: TCP
+          port: 5432
+---
+# NO-OP. Kept in Git to match the live cluster and to document why host-level
+# access from ms-1 does not work -- do not assume this policy grants anything.
+#
+# It names ms-1's real host IPs and still never matches. The Calico pool
+# default-ipv4-ippool runs vxlanMode: Always, so traffic from any node other
+# than the pod's host crosses the overlay, and workload ingress is enforced on
+# the decapsulated inner packet -- whose source is ms-1's VXLAN tunnel address
+# (10.42.255.128 as of Aug 2026), which no ipBlock here covers. It would start
+# working only if the pool ever left vxlanMode: Always.
+#
+# Do not "fix" this by adding the tunnel address: Calico assigns it from IPAM
+# and it changes on node rebuild. Route host-level access through wk-1 instead
+# (the policy above), or use `kubectl exec`, which bypasses NetworkPolicy
+# entirely. The failure mode here is a connection timeout, which reads like a
+# network fault rather than a policy denial.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: postgresql-allow-from-ms1-host
+  namespace: databases-prod
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: postgresql
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - ipBlock:
+            cidr: 172.27.15.12/32
+        - ipBlock:
+            cidr: 192.168.15.2/32
+      ports:
+        - protocol: TCP
+          port: 5432
