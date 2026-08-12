@@ -164,26 +164,14 @@ done
 **`sync-keycloak-github-idp.sh` defaults to `KEYCLOAK_REALM=apps-prod`**, unlike its
 per-realm siblings which hard-code their realm. Check which realm you are pointing at.
 
-**`verify-snapshot.sh` always reports at least one drift, and that one is false.** Verified
-2026-08-11:
+**`verify-snapshot.sh` prints `INFO` lines for Argo revisions, and they are not drift.**
+Application revisions advance with every push, so they are reported but deliberately do not set
+the exit code. Only the version comparisons at the top count. If those say `OK` and the summary
+says `no drift detected`, the snapshot is current no matter how many `INFO` lines scrolled past.
 
-```
-DRIFT K3s kubelet   expected=`v1.35.1+k3s1`   actual=v1.35.1+k3s1
-```
-
-Identical versions. The `snap_version()` awk trims surrounding whitespace but not the **markdown
-backticks** that `SNAPSHOT.md` wraps every version in, so the comparison can never match. A
-drift detector that cries wolf on every run is worse than none — you stop reading it. One-line
-fix: strip backticks alongside whitespace in that `gsub`.
-
-Argo `DRIFT … (not in snapshot)` lines are different and usually legitimate — they mean
-`SNAPSHOT.md` predates the current commits and genuinely needs regenerating.
-
-**`seal-whoami-oauth2-proxy.sh` is orphaned.** It writes to
-`deploy/apps/whoami/overlays/prod/`, deleted in `36d9411` when whoami was retired. It cannot
-work as written. Kept only because it is a compact reference for sealing an oauth2-proxy triple
-(`client-id` / `client-secret` / `cookie-secret`) — for a working version of that pattern, use
-`seal-bytebase-secrets.sh`.
+(Until 2026-08-11 this script compared markdown-backticked snapshot values against bare live
+ones and so reported drift between two identical versions on every single run. Fixed by
+stripping backticks in `snap_version()`.)
 
 **Sealing while the cluster is unreachable fails confusingly.** `kubeseal` needs the cert, and
 the cert comes from the cluster. Bring WireGuard up or run from `ms-1`.

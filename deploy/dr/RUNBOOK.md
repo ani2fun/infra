@@ -456,30 +456,21 @@ scripts/secrets/rotate-keycloak-github-oauth.sh <<client-id>> <<client-secret>>
 
 ---
 
-## Layer 10 -- Whoami
+## Layer 10 -- Whoami — **RETIRED, SKIP THIS LAYER**
 
-**Goal.** Public test app `whoami.kakde.eu` answers; if you also want
-`whoami-auth.kakde.eu`, the oauth2-proxy template is activated.
+whoami and its oauth2-proxy were removed in `36d9411` (2026-06-13);
+`whoami.kakde.eu` and `whoami-auth.kakde.eu` are decommissioned. There are no
+manifests left under `deploy/apps/whoami/`, and
+`scripts/secrets/seal-whoami-oauth2-proxy.sh` was deleted along with them.
 
-### L10.1 Apply the live whoami
+The layer number is kept so that L11+ and the gate ids in
+[`gates.md`](gates.md) do not all shift. **On a rebuild, go straight to
+Layer 11.**
 
-```bash
-ssh root@ms-1 'kubectl apply -k' deploy/apps/whoami/overlays/prod/
-```
-
-### L10.2 Optional: activate whoami-auth
-
-If you want the OIDC-protected variant, follow the activation steps in
-[`../apps/whoami/README.md`](../apps/whoami/README.md). In short:
-
-1. Confirm a `whoami-oauth2-proxy` Keycloak client exists.
-2. `scripts/secrets/seal-whoami-oauth2-proxy.sh <id> <secret>`
-3. Uncomment the resource lines in
-   `deploy/apps/whoami/base/kustomization.yaml` and
-   `deploy/apps/whoami/overlays/prod/kustomization.yaml`.
-4. `kubectl apply -k deploy/apps/whoami/overlays/prod/`.
-
-**Gate:** [L10-A, L10-B](gates.md#l10----apps-and-public-reachability)
+For a working example of the pattern this layer used to demonstrate — an app
+behind oauth2-proxy authenticating against Keycloak — see
+[`../apps/bytebase/`](../apps/bytebase/), which does the same thing for real at
+`bytebase.kakde.eu`.
 
 ---
 

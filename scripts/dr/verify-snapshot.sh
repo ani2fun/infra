@@ -19,6 +19,12 @@ kubectl_ms1() { ssh_ms1 "KUBECONFIG=/etc/rancher/k3s/k3s.yaml kubectl $*"; }
 
 # Pull a "Component | Version |" table row out of the snapshot. Returns the
 # Version cell.
+#
+# The trim MUST strip backticks as well as whitespace: SNAPSHOT.md writes every
+# version as markdown code (`v1.35.1+k3s1`), so trimming whitespace alone leaves
+# the backticks attached and the comparison can NEVER match. That made this
+# script report drift between two identical versions on every single run, which
+# is the fastest way to train an operator to ignore a drift detector.
 snap_version() {
   local component="$1"
   awk -v c="$component" -F'|' '
@@ -26,8 +32,8 @@ snap_version() {
     /^\|---/ && in_table { next }
     /^[^|]/ { in_table=0 }
     in_table {
-      gsub(/^[ \t]+|[ \t]+$/, "", $2)
-      gsub(/^[ \t]+|[ \t]+$/, "", $3)
+      gsub(/^[ \t`]+|[ \t`]+$/, "", $2)
+      gsub(/^[ \t`]+|[ \t`]+$/, "", $3)
       if ($2 == c) { print $3; exit }
     }
   ' "$SNAPSHOT"
@@ -54,10 +60,10 @@ expected_k3s="$(snap_version "K3s / kubelet")"
 actual_k3s="$(kubectl_ms1 "get nodes -o jsonpath='{.items[0].status.nodeInfo.kubeletVersion}'" 2>/dev/null || echo unknown)"
 check "K3s kubelet" "$expected_k3s" "$actual_k3s"
 
-# cert-manager Helm chart
-expected_cm="$(awk -F'|' '/cert-manager.*v1\./ && / Helm chart /==0 {next} / cert-manager / && / [|][^|]*v1\.[0-9]/ {print}' "$SNAPSHOT" | head -1)"
+# cert-manager Helm chart. Matched by grepping the snapshot for the live chart
+# string rather than parsing a specific cell — the chart name carries its own
+# version (cert-manager-v1.19.1), so presence anywhere in the file is enough.
 actual_cm="$(ssh_ms1 "KUBECONFIG=/etc/rancher/k3s/k3s.yaml helm -n cert-manager list -o json 2>/dev/null" | jq -r '.[0].chart' 2>/dev/null || echo unknown)"
-# soft-grep the snapshot for the expected chart string
 if grep -q "$actual_cm" "$SNAPSHOT" 2>/dev/null; then
   printf "  OK   %-30s = %s\n" "cert-manager Helm chart" "$actual_cm"
 else
@@ -67,15 +73,16 @@ fi
 
 # Argo CD synced revisions per app
 echo
-echo "=> Argo CD Application revisions:"
+echo "=> Argo CD Application revisions (informational — these move on every commit):"
 kubectl_ms1 "get application -n argocd -o jsonpath='{range .items[*]}{.metadata.name}={.status.sync.revision}{\"\\n\"}{end}'" | while IFS='=' read -r name rev; do
   [[ -z "$name" ]] && continue
   if grep -q "$rev" "$SNAPSHOT"; then
     printf "  OK   %-25s = %s\n" "$name" "$rev"
   else
-    printf "  DRIFT %-25s actual=%s (not in snapshot)\n" "$name" "$rev"
-    # this script prints DRIFT but doesn't fail on app revisions because
-    # those naturally move over time; treat them as informational
+    # Labelled INFO, not DRIFT, and deliberately does NOT set drift=1: app
+    # revisions advance with every push, so counting them would leave the script
+    # permanently failing and the word DRIFT meaning nothing.
+    printf "  INFO %-25s at=%s (newer than snapshot)\n" "$name" "$rev"
   fi
 done
 

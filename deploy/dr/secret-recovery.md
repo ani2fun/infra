@@ -15,7 +15,6 @@ day, how to apply it, and what breaks if it's lost.
 | `cortex-db` | `apps-prod` | Sealed-secrets restore (preferred) or postgres password rotation | sealed-secrets controller, or `scripts/secrets/rotate-generic-secret.sh` | cortex / cortex-tutor can't reach postgres |
 | `grafana-github-oauth` | `monitoring` | Sealed-secrets restore (preferred) or recreate the GitHub OAuth App | sealed-secrets controller, or reseal with `kubeseal` | Grafana GitHub login fails; recover via the break-glass local admin |
 | `grafana-admin` | `monitoring` | Pick fresh values (break-glass only) | sealed-secrets controller, or reseal with `kubeseal` | Lose only the local Grafana fallback login; GitHub OAuth + metrics unaffected |
-| `whoami-oauth2-proxy` | `apps` (when deployed) | Generate fresh values | `scripts/secrets/seal-whoami-oauth2-proxy.sh` | whoami-auth.kakde.eu fails; whoami.kakde.eu unaffected |
 | TLS cert Secrets (`*-tls`) | various | cert-manager re-issues automatically | cert-manager | Brief unavailability while DNS-01 challenge completes |
 | WireGuard private keys | each node `/etc/wireguard/wg0.key` | Password manager (4 entries) or generate fresh | `scp` + `wg-quick down/up wg0` | Mesh fails; cluster API unreachable; rebuild from L2 |
 | wk-2 Wi-Fi PSK | wk-2 `/etc/netplan/*.yaml` | Password manager | netplan template fill-in | wk-2 can't reach the LAN; switch to wired Ethernet to recover |
@@ -241,34 +240,6 @@ kubectl create secret generic grafana-admin --namespace monitoring \
 
 **If lost.** Reseal a new password and resync. No metrics or dashboards are lost
 (dashboards are provisioned from Git; metrics live in the vmsingle PVC).
-
----
-
-### `whoami-oauth2-proxy` (apps)
-
-**Why it's needed.** Three keys: Keycloak client id/secret + a
-`cookie-secret` for oauth2-proxy session cookies. Only needed when the
-`whoami-auth.kakde.eu` flow is activated.
-
-**Note:** as of the snapshot, whoami-auth is **not deployed**. The
-manifests in `apps/whoami/` are deployable templates; activate via the
-README in that directory.
-
-**Source on rebuild.**
-
-- Keycloak client id: chosen at client creation in the `kakde` realm.
-- Keycloak client secret: from the client's "Credentials" tab.
-- `cookie-secret`: generate fresh (`head -c 32 /dev/urandom | base64`).
-
-**Apply via the helper:**
-
-```bash
-scripts/secrets/seal-whoami-oauth2-proxy.sh \
-  <<keycloak-client-id>> <<keycloak-client-secret>>
-```
-
-The helper generates the cookie-secret automatically and writes the
-SealedSecret next to the manifests.
 
 ---
 

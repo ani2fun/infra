@@ -106,8 +106,6 @@ If you have neither the live cluster nor a backup of the master key:
 - `cortex-tutor-secrets` -- regenerate the `mcp-service-token` and
   `anthropic-api-key`; reseal with
   `scripts/secrets/seal-cortex-tutor-secrets.sh`.
-- `whoami-oauth2-proxy` -- regenerate Keycloak client secret + cookie
-  secret; reseal with `scripts/secrets/seal-whoami-oauth2-proxy.sh`.
 
 See `dr/secret-recovery.md` for the full decision tree.
 
