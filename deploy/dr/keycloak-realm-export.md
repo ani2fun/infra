@@ -105,7 +105,7 @@ realm exists yet):
   (regenerated at github.com).
 - Reapply `keycloak-github-oauth` SealedSecret with the new secret value
   using `scripts/secrets/rotate-keycloak-github-oauth.sh`.
-- Force an end-to-end auth flow via `https://whoami-auth.kakde.eu`.
+- Force an end-to-end auth flow via `https://bytebase.kakde.eu` (302 -> Keycloak).
 
 ## See also
 

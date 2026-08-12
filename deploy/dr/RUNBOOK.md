@@ -540,8 +540,8 @@ held real blobs, this step is a no-op — Grafana comes up on its own.)
 End-to-end public reachability:
 
 ```bash
-for h in kakde.eu dev.codefolio.kakde.eu cortex.kakde.eu \
-         argocd.kakde.eu keycloak.kakde.eu whoami.kakde.eu; do
+for h in kakde.eu argocd.kakde.eu keycloak.kakde.eu \
+         grafana.kakde.eu synapse.kakde.eu bytebase.kakde.eu; do
   printf "%-32s " "$h"
   curl -sI "https://$h/" -o /dev/null -w "%{http_code}\n" || echo "FAIL"
 done

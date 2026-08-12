@@ -36,7 +36,8 @@ A fresh Ubuntu 24.04.4 LTS installer image for each node.
 |---|---|
 | [`README.md`](README.md) | This index. |
 | [`RUNBOOK.md`](RUNBOOK.md) | Step-by-step rebuild from cold OS. Layers L0–L11. |
-| [`SNAPSHOT.md`](SNAPSHOT.md) | Frozen state on the day this pack was authored. Versions, image digests, host facts, Argo CD revisions. |
+| [`SNAPSHOT.md`](SNAPSHOT.md) | Frozen state on the day this pack was authored (2026-05-09). Versions, image digests, host facts, Argo CD revisions. **Never edited in place** — it is the historical anchor, and `verify-snapshot.sh` compares against it. |
+| [`SNAPSHOT-2026-08-12.md`](SNAPSHOT-2026-08-12.md) | Later capture: adds the `bytebase` and `dblab` namespaces, drops the retired whoami. |
 | [`gates.md`](gates.md) | Verification commands referenced by ID from the runbook. |
 | [`secret-recovery.md`](secret-recovery.md) | Per-secret decision tree: where the plaintext comes from on rebuild day. |
 | [`sealed-secrets-key-backup.md`](sealed-secrets-key-backup.md) | Backup and restore of the Sealed-Secrets controller master key. |
@@ -55,10 +56,10 @@ Companion scripts under `scripts/dr/` and `scripts/secrets/`.
 | L4 | Sealed-Secrets controller + key restore | [`platform/sealed-secrets/README.md`](../platform/sealed-secrets/README.md) | `sealed-secrets-key-backup.md` |
 | L5 | Traefik + edge guardrail | [`platform/traefik/README.md`](../platform/traefik/README.md) | `gates.md§L5` |
 | L6 | cert-manager + ClusterIssuers + Cloudflare token | [`platform/cert-manager/README.md`](../platform/cert-manager/README.md) | `secret-recovery.md#cloudflare-api-token` |
-| L7 | Argo CD + Applications (codefolio, cortex, cortex-tutor, go-judge, likec4) | [`platform/argocd/README.md`](../platform/argocd/README.md) | `RUNBOOK.md §L7` |
+| L7 | Argo CD + Applications (codefolio, go-judge, likec4, synapse, synapse-*, bytebase, monitoring) | [`platform/argocd/README.md`](../platform/argocd/README.md) | `RUNBOOK.md §L7` |
 | L8 | PostgreSQL StatefulSet + DB restore | [`platform/postgresql/README.md`](../platform/postgresql/README.md) | `scripts/dr/postgres-*.sh` |
 | L9 | Keycloak + realm restore | [`apps/keycloak/README.md`](../apps/keycloak/README.md) | `keycloak-realm-export.md` |
-| L10 | Whoami test app (and oauth2-proxy template if you want it) | [`apps/whoami/README.md`](../apps/whoami/README.md) | `RUNBOOK.md §L10` |
+| L10 | ~~Whoami test app~~ **RETIRED** -- skip to L11 | -- | `RUNBOOK.md §L10` |
 | L11 | Monitoring (metrics): VictoriaMetrics + Grafana | [`apps/monitoring/README.md`](../apps/monitoring/README.md) | `RUNBOOK.md §L11`, `gates.md§L11` |
 
 ## What this pack cannot restore automatically

@@ -18,7 +18,10 @@ namespaces:
     purpose: GitOps controller and app definitions
 
   - name: apps
-    purpose: legacy test namespace (whoami test app)
+    purpose: >-
+      legacy namespace, now EMPTY. Held the whoami test app until it was retired
+      in 36d9411 (2026-06-13). Kept only so nothing that still references it breaks;
+      safe to delete once nothing does.
 
   - name: apps-dev
     purpose: development application workloads

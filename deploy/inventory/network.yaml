@@ -24,8 +24,8 @@ network:
       - argocd.kakde.eu
       - keycloak.kakde.eu
       - grafana.kakde.eu
-      - whoami.kakde.eu
-      - whoami-auth.kakde.eu
+      - synapse.kakde.eu
+      - bytebase.kakde.eu
   postgres:
     service_fqdn: postgresql.databases-prod.svc.cluster.local
     port: 5432

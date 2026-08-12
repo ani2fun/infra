@@ -51,7 +51,7 @@ ssh vm-1 'for p in 51820 51821 51822; do timeout 2 nc -uvz 82.123.119.181 $p 2>&
 **L1-B** Cloudflare A records resolve to the edge IP.
 
 ```bash
-for h in kakde.eu dev.codefolio.kakde.eu cortex.kakde.eu argocd.kakde.eu keycloak.kakde.eu grafana.kakde.eu whoami.kakde.eu; do
+for h in kakde.eu argocd.kakde.eu keycloak.kakde.eu grafana.kakde.eu synapse.kakde.eu bytebase.kakde.eu; do
   echo "$h -> $(dig +short $h @1.1.1.1)"
 done
 # expected: every record returns 84.247.143.66
@@ -249,19 +249,20 @@ ssh ms-1 'scripts/dr/backup-keycloak-realm.sh /tmp'
 **L10-A** Every public host responds.
 
 ```bash
-for h in kakde.eu dev.codefolio.kakde.eu cortex.kakde.eu \
-         argocd.kakde.eu keycloak.kakde.eu grafana.kakde.eu whoami.kakde.eu; do
+for h in kakde.eu argocd.kakde.eu keycloak.kakde.eu \
+         grafana.kakde.eu synapse.kakde.eu bytebase.kakde.eu; do
   printf "%-32s " "$h"
   curl -sI "https://$h/" -o /dev/null -w "%{http_code}\n" || echo "FAIL"
 done
 # expected: every line ends in 200, 302, 308, or 401 (auth-protected) -- never 5xx, never timeout
 ```
 
-**L10-B** Optional: whoami-auth (only if you've activated the oauth2-proxy template).
+**L10-B** The Keycloak-gated app redirects to login rather than serving content.
 
 ```bash
-curl -sI https://whoami-auth.kakde.eu | head -1
-# expected: HTTP/2 302 (redirect to Keycloak login)
+curl -s -o /dev/null -w '%{http_code} %{redirect_url}\n' https://bytebase.kakde.eu/
+# expected: 302, redirecting to keycloak.kakde.eu/realms/bytebase/protocol/openid-connect/auth
+# a 200 here means the oauth2-proxy gate has been bypassed -- treat as an incident
 ```
 
 ## L11 -- Monitoring
