@@ -125,8 +125,13 @@ SSH_HOST=wk-1 deploy/platform/postgresql/scripts/pg-tunnel.sh
 never encapsulated, and `postgresql-allow-from-wk1-host` admits both of wk-1's
 host addresses by `ipBlock`. Routing via ms-1 does **not** work: that traffic
 crosses the Calico VXLAN overlay and arrives with ms-1's tunnel address as the
-inner source, which no `ipBlock` covers. `postgresql-allow-from-ms1-host` looks
-like it grants exactly this and is a no-op -- see the comments in
+inner source, which no `ipBlock` covers.
+
+Do not try to fix that by adding an ipBlock policy for ms-1. One existed --
+`postgresql-allow-from-ms1-host`, naming ms-1's real host IPs -- and it never
+matched anything; it was measured and deleted in Aug 2026. The same applies to
+any non-hosting node. Adding the VXLAN tunnel address instead is also wrong:
+Calico assigns it from IPAM and it changes on node rebuild. See the comments in
 `5-networkpolicy.yaml`.
 
 For a one-off query, `kubectl exec` bypasses NetworkPolicy entirely and needs

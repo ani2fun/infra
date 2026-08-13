@@ -226,8 +226,12 @@ authentication gate already facing the internet; the rule that protects data is 
 "only oauth2-proxy may reach Bytebase" policy.
 
 **Note for the repo:** `postgresql-allow-from-ms1-host` and `postgresql-allow-from-wk1-host`
-exist in the live cluster but **not in any file under `deploy/`**. Someone already hit this exact
-class of problem for Postgres and fixed it out-of-band. That drift should be reconciled.
+existed in the live cluster but **not in any file under `deploy/`** — someone had already hit
+this exact class of problem for Postgres and fixed it out-of-band. Reconciled in Aug 2026:
+`postgresql-allow-from-wk1-host` is now tracked in `deploy/platform/postgresql/5-networkpolicy.yaml`,
+and `postgresql-allow-from-ms1-host` was measured to be a no-op for the same reason described
+above — ms-1 does not host the Postgres pod, so its traffic also arrived from a VXLAN tunnel
+address — and was deleted from both the cluster and Git rather than tracked.
 
 ### 3.2 Kafka stuck 0/1 forever — two independent bugs
 

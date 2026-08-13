@@ -5,9 +5,10 @@ set -euo pipefail
 #
 # The SSH hop MUST stay on wk-1: wk-1 hosts the pod, and the NetworkPolicy
 # postgresql-allow-from-wk1-host admits wk-1's host IP (172.27.15.11) by
-# ipBlock. Do not route via ms-1 -- postgresql-allow-from-ms1-host is a no-op,
-# because ms-1's traffic crosses the Calico VXLAN overlay and arrives with its
-# tunnel address (10.42.255.128) as the inner source, which no ipBlock covers.
+# ipBlock. Do not route via ms-1, and do not add a policy to make that work --
+# ms-1's traffic crosses the Calico VXLAN overlay and arrives with its tunnel
+# address as the inner source, which no ipBlock can usefully cover. See the
+# comments in ../5-networkpolicy.yaml.
 #
 # Calico hands out a fresh pod IP on every reschedule, so the pod IP is looked
 # up at run time. Hardcoding it turns any pod restart into a connection timeout.
