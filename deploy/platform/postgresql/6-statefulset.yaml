@@ -19,7 +19,7 @@ spec:
     spec:
       nodeSelector:
         kakde.eu/postgresql: "true"
-      # Top non-system tier: outranks go-judge and other low-priority workloads so
+      # Top non-system tier: outranks the sandbox executor and other low-priority workloads so
       # the kubelet evicts those first under wk-1 memory pressure, never the database.
       # See deploy/platform/priorityclasses/.
       priorityClassName: data-tier

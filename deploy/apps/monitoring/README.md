@@ -18,7 +18,7 @@ the repo. Only **traces** (Tempo) remain deferred to a later phase; the
 ## Before you deploy — check headroom
 
 `vmsingle` is pinned to **wk-1** (its `local-path` PVC is node-local, so the pin
-makes the data location deterministic — same rationale as `go-judge`). Confirm
+makes the data location deterministic — same rationale as `synapse-go-judge`). Confirm
 wk-1 has room first; if not, change the one `nodeSelector` line in
 `base/vmsingle-deployment.yaml` to `wk-2`.
 

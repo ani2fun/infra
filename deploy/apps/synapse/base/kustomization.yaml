@@ -4,7 +4,7 @@ kind: Kustomization
 # NOTE: no `labels: includeSelectors: true` — the NetworkPolicy inlines a
 # cross-app podSelector (synapse-likec4), which selector-injection would
 # silently rewrite. Labels are written explicitly in each manifest (the same
-# rule as deploy/apps/go-judge).
+# rule the retired deploy/apps/go-judge followed).
 
 resources:
   - deployment.yaml

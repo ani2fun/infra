@@ -27,11 +27,11 @@ spec:
         app.kubernetes.io/part-of: monitoring
     spec:
       # Pin to wk-1 so the local-path PVC has a deterministic, documented home
-      # (same rationale as deploy/apps/go-judge: wk-1 has the RAM headroom).
+      # (same rationale as deploy/apps/synapse-go-judge: wk-1 has the RAM headroom).
       # If wk-1 is tight at deploy time (check `kubectl top nodes` first), change
       # this one line to wk-2. No priorityClassName: monitoring runs at the
       # implicit default tier (0) like the apps, so it can never preempt
-      # PostgreSQL (data-tier) and is shed after go-judge under node pressure.
+      # PostgreSQL (data-tier) and is shed after the sandbox executor under node pressure.
       nodeSelector:
         kubernetes.io/hostname: wk-1
       securityContext:

@@ -4,7 +4,7 @@ metadata:
   # vmsingle has no auth of its own — ClusterIP keeps it off the public edge, this
   # keeps it private *inside* the cluster too: only vmagent (remote-write +
   # self-scrape) and Grafana (queries) may reach the TSDB on :8428; every other pod
-  # is denied. Mirrors the isolation pattern used by cortex/go-judge.
+  # is denied. Mirrors the isolation pattern used by synapse-go-judge.
   #
   # Kubelet health probes are host-sourced and are NOT affected by pod
   # NetworkPolicies in this Calico cluster (verified: likec4 runs httpGet probes

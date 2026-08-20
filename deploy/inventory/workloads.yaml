@@ -69,9 +69,11 @@ workloads:
       cluster_issuer: letsencrypt-staging-dns01
 
   # NOTE: piston and dsa-tracker (backend + frontend) were retired and removed
-  # (2026-06-15); their entries were deleted from this inventory. go-judge
-  # replaced piston as the in-cluster code runner. This file still predates the
-  # cortex / cortex-tutor / go-judge / likec4 apps — refresh it from live state
+  # (2026-06-15). go-judge replaced piston as the in-cluster code runner and was
+  # itself retired (2026-08-20) once codefolio went static; synapse-go-judge is
+  # now the only code runner. cortex / cortex-tutor are parked in
+  # platform/argocd/applications/inactive/. This file still predates the synapse
+  # and likec4 apps — refresh it from live state
   # (deploy/live-capture/collect-live-state.sh) to add them.
 
   - name: postgresql
