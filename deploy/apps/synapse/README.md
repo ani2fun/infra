@@ -25,7 +25,7 @@ repo; this file is the *operations* truth. Everything was executed and verified 
 | App (ArgoCD) | Path | What it is |
 |---|---|---|
 | `synapse` | `deploy/apps/synapse/overlays/prod` | The Scala app (`ghcr.io/ani2fun/synapse`, 1 replica — per-pod rate limiter, deliberate) + a **git-sync sidecar** pulling `ani2fun/synapse-content` (public, anonymous https) into a shared emptyDir every 60s. The server reads `SYNAPSE_ROOT=/content/current` and re-indexes when the checkout's HEAD SHA moves — **prose publishing = `git push`, no redeploy**. Ingress `synapse.kakde.eu`. |
-| `synapse-go-judge` | `deploy/apps/synapse-go-judge/overlays/prod` | Synapse's **own** sandbox (`ghcr.io/ani2fun/synapse-go-judge`, built from the synapse repo's `runner/go-judge/`): privileged (cgroup-v2 sandboxing), pinned to wk-1, references the existing `go-judge-low` PriorityClass, `ES_PARALLELISM=1`, isolation NetworkPolicy (ingress only from synapse, all egress denied). |
+| `synapse-go-judge` | `deploy/apps/synapse-go-judge/overlays/prod` | Synapse's **own** sandbox (`ghcr.io/ani2fun/synapse-go-judge`, built from the synapse repo's `runner/go-judge/`): privileged (cgroup-v2 sandboxing), pinned to wk-1, defines and owns the cluster-scoped `go-judge-low` PriorityClass (moved here when the shared go-judge app was retired), `ES_PARALLELISM=1`, isolation NetworkPolicy (ingress only from synapse, all egress denied). |
 | `synapse-likec4` | `deploy/apps/synapse-likec4/overlays/prod` | The merged `/c4` diagram SPA (`ghcr.io/ani2fun/synapse-likec4`, built by **synapse-content**'s CI from every `.c4` in that repo). Runs on the edge node; only consumer is synapse's `/c4/*` proxy. |
 
 Two Secrets in `apps-prod` (sealed into git):

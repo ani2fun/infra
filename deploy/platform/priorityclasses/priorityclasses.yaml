@@ -11,10 +11,11 @@
 #   system-cluster-critical   2000000000   (built-in)
 #   data-tier                 1000000      PostgreSQL / stateful data  <-- protect
 #   (default)                 0            normal app workloads (codefolio, cortex, ...)
-#   go-judge-low              -100         untrusted code: first to die (defined in the go-judge app)
+#   go-judge-low              -100         untrusted code: first to die (defined in the synapse-go-judge app)
 #
-# Intent on wk-1: under memory pressure the kubelet sheds go-judge and other
-# low-priority workloads long before it touches the apps or the database.
+# Intent on wk-1: under memory pressure the kubelet sheds the sandbox executor
+# and other low-priority workloads long before it touches the apps or the
+# database.
 ---
 apiVersion: scheduling.k8s.io/v1
 kind: PriorityClass
