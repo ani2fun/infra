@@ -3,10 +3,13 @@ kind: Kustomization
 
 # No `labels: includeSelectors: true` — the NetworkPolicy inlines the synapse
 # consumer podSelector, which selector-injection would rewrite (the same rule
-# as deploy/apps/go-judge). The PriorityClass `go-judge-low` is referenced,
-# not redefined: it is cluster-scoped and owned by deploy/apps/go-judge.
+# that applied to the retired deploy/apps/go-judge). The cluster-scoped
+# `go-judge-low` PriorityClass is DEFINED here (sync-wave -1, applied before the
+# Deployment): it moved from the go-judge app when that app was retired, since
+# synapse-go-judge is now its only user.
 
 resources:
+  - priorityclass.yaml
   - deployment.yaml
   - service.yaml
   - networkpolicy.yaml

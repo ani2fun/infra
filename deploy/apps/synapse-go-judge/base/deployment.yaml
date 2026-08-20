@@ -20,11 +20,11 @@ spec:
         app.kubernetes.io/component: executor
     spec:
       terminationGracePeriodSeconds: 30
-      # Same placement + priority posture as the shared go-judge (see that app's
-      # manifests for the 2026-06-07 OOM rationale): pinned to wk-1 (RAM headroom),
-      # negative priority so the untrusted-code executor is evicted first and never
-      # preempts the database. References the EXISTING cluster-scoped PriorityClass
-      # `go-judge-low` (owned by deploy/apps/go-judge) — not redefined here.
+      # Placement + priority posture inherited from the retired shared go-judge
+      # app (2026-06-07 wk-1 OOM incident): pinned to wk-1 (RAM headroom), and
+      # negative priority so the untrusted-code executor is evicted first and
+      # never preempts the database. The cluster-scoped `go-judge-low`
+      # PriorityClass is now DEFINED by this app, in priorityclass.yaml.
       nodeSelector:
         kubernetes.io/hostname: wk-1
       priorityClassName: go-judge-low
