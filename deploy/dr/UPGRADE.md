@@ -123,15 +123,48 @@ mkdir -p ~/homelab-backups && scp ms-1:/root/k3s-server-backup-*.tar.gz ~/homela
 
 ### U0.2 Application state
 
+All three scripts take the output directory as their **first argument** — they exit with a usage
+error without one.
+
 ```bash
-scripts/dr/postgres-backup.sh
-scripts/dr/sealed-secrets-key-backup.sh
-scripts/dr/backup-keycloak-realm.sh
+BK=~/homelab-backups/pre-upgrade-$(date -u +%Y%m%d)
+mkdir -p "$BK" && chmod 700 "$BK"
+
+scripts/dr/postgres-backup.sh "$BK"
+scripts/dr/sealed-secrets-key-backup.sh "$BK"
 ```
 
-**Why all three.** Postgres is the only copy of the app and Keycloak data. The sealed-secrets key
+**Keycloak has four realms, and the script does one realm per run.** `REALM` defaults to `kakde`,
+so running it bare backs up neither `synapse` (which every Synapse login depends on) nor
+`apps-prod`. Export all of them:
+
+```bash
+for r in kakde synapse apps-prod master; do
+  REALM="$r" scripts/dr/backup-keycloak-realm.sh "$BK"
+done
+# expected: each run reports a non-zero client count
+# (as of 2026-08-20: kakde 7, synapse 8, apps-prod 9, master 10)
+```
+
+**Why all of it.** Postgres is the only copy of the app and Keycloak data. The sealed-secrets key
 decrypts every `SealedSecret` in Git — lose it and the manifests are inert. See
 [`secret-recovery.md`](secret-recovery.md).
+
+**Check the output, do not just check the exit code.** All three scripts were silently producing
+incomplete backups until 2026-08-20:
+
+| Script | Was | Now |
+|---|---|---|
+| `postgres-backup.sh` | captured only the **first** database — `ssh` drained the `while read` loop's stdin, so keycloak and synapse were never dumped | all 7 databases; a good tarball is ~240K, not ~4K |
+| `backup-keycloak-realm.sh` | **zero clients** in every export — it used `GET /admin/realms/{realm}`, which ignores `?exportClients=true` | uses `partial-export`; refuses to keep an export with no clients |
+| `sealed-secrets-key-backup.sh` | reported `keys: 0` (miscount only — the file was always correct) | reports the real count, and now fails if the export is genuinely empty |
+
+Sanity-check each result before trusting the window:
+
+```bash
+tar -tzf "$BK"/postgres-backup-*.tar.gz | grep -c '\.dump$'   # expected: 7
+grep -c 'tls\.key:' "$(ls -t "$BK"/sealed-secrets-master-key-*.yaml | head -1)"  # expected: 5
+```
 
 ### U0.3 A "before" picture to diff against
 

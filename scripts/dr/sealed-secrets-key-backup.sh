@@ -28,9 +28,23 @@ if ! grep -q "kind: List" "${out_file}" && ! grep -q "kind: Secret" "${out_file}
   exit 1
 fi
 
+# Count the private keys actually present. `kubectl get -o yaml` with no matches
+# still emits a well-formed empty `kind: List`, so the shape check above passes
+# on a backup containing nothing — this is the check that would catch that.
+key_count="$(grep -c '^[[:space:]]*tls\.key:' "${out_file}" || true)"
+if [[ "${key_count}" -eq 0 ]]; then
+  echo "ERROR: backup contains ZERO keys — nothing matched the label selector" >&2
+  echo "       sealedsecrets.bitnami.com/sealed-secrets-key=active in kube-system." >&2
+  echo "       Refusing to leave an empty file that looks like a backup." >&2
+  rm -f "${out_file}"
+  exit 1
+fi
+
 chmod 0600 "${out_file}"
 
-key_count="$(grep -c '^  name:' "${out_file}" || true)"
+# NB: counted above from tls.key, not from `^  name:` — inside a `kind: List`
+# each Secret's metadata.name is indented four spaces, so the old two-space
+# pattern matched nothing and every backup reported "keys: 0".
 sha="$(shasum -a 256 "${out_file}" | awk '{print $1}')"
 
 cat <<EOF

@@ -50,9 +50,15 @@ fi
 
 echo "==> exporting realm '${REALM}' (with clients)"
 out_file="${OUT_DIR}/${REALM}-realm-${TS}.json"
-curl -fsS \
+# MUST be the partial-export endpoint. `GET /admin/realms/{realm}` returns the
+# realm's SETTINGS only and silently ignores ?exportClients=true — it was the
+# call used here until 2026-08-20, and every export it produced contained zero
+# clients. On restore that means no synapse-web, no argocd, no grafana client:
+# realm present, every application login broken.
+curl -fsS -X POST \
   -H "Authorization: Bearer ${TOKEN}" \
-  "https://${KEYCLOAK_HOST}/admin/realms/${REALM}?exportClients=true" \
+  -H "Content-Length: 0" \
+  "https://${KEYCLOAK_HOST}/admin/realms/${REALM}/partial-export?exportClients=true&exportGroupsAndRoles=true" \
   > "${out_file}"
 
 chmod 0600 "${out_file}"
@@ -65,6 +71,17 @@ fi
 
 clients="$(jq '.clients | length' "${out_file}")"
 roles="$(jq '.roles.realm | length' "${out_file}")"
+
+# A realm with no clients cannot authenticate anything, so an export containing
+# none is a failed export, not an empty one. Fail loudly rather than leaving a
+# file that looks like a backup.
+if [[ "${clients}" -eq 0 ]]; then
+  echo "ERROR: export of realm '${REALM}' contains ZERO clients — refusing to keep it." >&2
+  echo "       Check that the partial-export endpoint is reachable and the admin" >&2
+  echo "       account can view clients in this realm." >&2
+  rm -f "${out_file}"
+  exit 1
+fi
 sha="$(shasum -a 256 "${out_file}" | awk '{print $1}')"
 
 cat <<EOF

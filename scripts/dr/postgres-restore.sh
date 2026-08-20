@@ -29,6 +29,10 @@ echo "==> extracting"
 tar -C "$WORK" -xzf "$BACKUP"
 [[ -f "$WORK/globals.sql" ]] || { echo "globals.sql missing from backup" >&2; exit 1; }
 
+# NOTE: deliberately NO `-n` here — exec_psql() below pipes dump files into
+# the remote command through this helper, and -n would redirect that stdin
+# from /dev/null and silently restore nothing. Loops that must not have
+# their stdin drained pass `< /dev/null` at the call site instead.
 ssh_ms1() { ssh -o BatchMode=yes -o ConnectTimeout=8 ms-1 "$@"; }
 exec_psql() {
   # pipe local file into kubectl exec on the postgres pod
@@ -58,7 +62,10 @@ if [[ -f "$WORK/inventory.txt" ]]; then
       db="${BASH_REMATCH[1]}"
     elif [[ "$line" =~ ^[[:space:]]+estimated_rows:[[:space:]]+(.+) ]]; then
       expected="${BASH_REMATCH[1]}"
-      actual="$(ssh_ms1 "KUBECONFIG=/etc/rancher/k3s/k3s.yaml kubectl -n ${NS} exec ${POD} -- psql -U postgres -At -d ${db} -c \"SELECT sum(reltuples)::bigint FROM pg_class WHERE relkind='r'\"" | tr -d '\r' || echo "?")"
+      # `< /dev/null` is load-bearing: this loop reads inventory.txt on stdin,
+      # and without it ssh drains the rest of the file, so only the FIRST
+      # database was ever row-count checked.
+      actual="$(ssh_ms1 "KUBECONFIG=/etc/rancher/k3s/k3s.yaml kubectl -n ${NS} exec ${POD} -- psql -U postgres -At -d ${db} -c \"SELECT sum(reltuples)::bigint FROM pg_class WHERE relkind='r'\"" < /dev/null | tr -d '\r' || echo "?")"
       printf "    %-30s expected≈%s actual≈%s\n" "$db" "$expected" "$actual"
     fi
   done < "$WORK/inventory.txt"

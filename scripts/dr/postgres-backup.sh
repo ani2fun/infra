@@ -23,7 +23,10 @@ TS="$(date -u +%Y%m%dT%H%M%SZ)"
 WORK="$(mktemp -d -t pg-backup-XXXXXX)"
 trap 'rm -rf "$WORK"' EXIT
 
-ssh_ms1() { ssh -o BatchMode=yes -o ConnectTimeout=8 ms-1 "$@"; }
+# -n is load-bearing: without it ssh inherits and drains the stdin of the
+# `while IFS= read -r db` loops below, so the loop ran exactly ONE iteration
+# and the backup silently captured only the first database.
+ssh_ms1() { ssh -n -o BatchMode=yes -o ConnectTimeout=8 ms-1 "$@"; }
 kubectl_exec() {
   ssh_ms1 "KUBECONFIG=/etc/rancher/k3s/k3s.yaml kubectl -n ${NS} exec ${POD} -- $*"
 }
