@@ -167,6 +167,10 @@ Repeat for all four nodes.
 
 **Goal.** All four nodes joined; Calico CNI healthy; CoreDNS resolves.
 
+> **Upgrading a cluster that is already running?** You are in the wrong document. These steps
+> assume bare nodes and skip the cordon, drain, and backup work an in-place version bump needs.
+> Use [`UPGRADE.md`](UPGRADE.md) instead.
+
 ### L3.1 Resolver file on every node
 
 ```bash
@@ -310,7 +314,7 @@ env var if the snapshot has been refreshed to a newer pin.
 ### L6.2 Apply the Cloudflare token
 
 Regenerate the token at Cloudflare per
-[`secret-recovery.md#cloudflare-api-token`](secret-recovery.md#cloudflare-api-token):
+[`secret-recovery.md#cloudflare-api-token`](secret-recovery.md#cloudflare-api-token-cert-manager):
 
 ```bash
 ssh root@ms-1 'kubectl -n cert-manager create secret generic cloudflare-api-token --from-literal=api-token=<<NEW_TOKEN>>'
@@ -350,10 +354,11 @@ ssh root@ms-1 'kubectl apply -f' deploy/platform/argocd/argocd-ingress.yaml
 
 ```bash
 ssh root@ms-1 'kubectl apply -f' deploy/platform/argocd/applications/codefolio.yaml
-ssh root@ms-1 'kubectl apply -f' deploy/platform/argocd/applications/cortex.yaml
-ssh root@ms-1 'kubectl apply -f' deploy/platform/argocd/applications/cortex-tutor.yaml
-ssh root@ms-1 'kubectl apply -f' deploy/platform/argocd/applications/go-judge.yaml
 ssh root@ms-1 'kubectl apply -f' deploy/platform/argocd/applications/likec4.yaml
+ssh root@ms-1 'kubectl apply -f' deploy/platform/argocd/applications/bytebase.yaml
+ssh root@ms-1 'kubectl apply -f' deploy/platform/argocd/applications/synapse.yaml
+ssh root@ms-1 'kubectl apply -f' deploy/platform/argocd/applications/synapse-go-judge.yaml
+ssh root@ms-1 'kubectl apply -f' deploy/platform/argocd/applications/synapse-likec4.yaml
 ssh root@ms-1 'kubectl apply -f' deploy/platform/argocd/applications/monitoring.yaml   # Grafana stays down until its secrets are sealed in L11
 ```
 

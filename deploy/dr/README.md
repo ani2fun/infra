@@ -9,6 +9,8 @@ to its current state.
 |---|---|
 | All four nodes wiped, fresh Ubuntu installs | Read [`RUNBOOK.md`](RUNBOOK.md) end to end. Start at Layer 0. |
 | One node lost, rest healthy | Skip to the relevant layer in `RUNBOOK.md`. WireGuard layer covers single-node WG re-key; K3s layer covers single-agent re-join. |
+| Node unreachable — no SSH, no kubectl | [`node-console-recovery.md`](node-console-recovery.md). Triage, physical console, SysRq REISUB. |
+| Planned K3s version bump or Ubuntu patching | [`UPGRADE.md`](UPGRADE.md). Nothing is broken — this is the scheduled-maintenance path. |
 | Database corruption, postgres pod gone | `scripts/dr/postgres-restore.sh` against the latest backup. See RUNBOOK §L8. |
 | Sealed-Secrets controller key lost | [`sealed-secrets-key-backup.md`](sealed-secrets-key-backup.md). |
 | Keycloak realm gone but DB intact | Reapply `deploy/apps/keycloak/`, then verify clients via the realm export JSON. See [`keycloak-realm-export.md`](keycloak-realm-export.md). |
@@ -36,6 +38,8 @@ A fresh Ubuntu 24.04.4 LTS installer image for each node.
 |---|---|
 | [`README.md`](README.md) | This index. |
 | [`RUNBOOK.md`](RUNBOOK.md) | Step-by-step rebuild from cold OS. Layers L0–L11. |
+| [`UPGRADE.md`](UPGRADE.md) | Planned in-place upgrade of K3s and Ubuntu on a live cluster. Phases U0–U7. The counterpart to `RUNBOOK.md`: same layers, nothing wiped. |
+| [`node-console-recovery.md`](node-console-recovery.md) | A node stopped answering. Triage ladder from "is it the network" through physical console and SysRq REISUB. |
 | [`SNAPSHOT.md`](SNAPSHOT.md) | Frozen state on the day this pack was authored (2026-05-09). Versions, image digests, host facts, Argo CD revisions. **Never edited in place** — it is the historical anchor, and `verify-snapshot.sh` compares against it. |
 | [`SNAPSHOT-2026-08-12.md`](SNAPSHOT-2026-08-12.md) | Later capture: adds the `bytebase` and `dblab` namespaces, drops the retired whoami. |
 | [`gates.md`](gates.md) | Verification commands referenced by ID from the runbook. |
@@ -55,8 +59,8 @@ Companion scripts under `scripts/dr/` and `scripts/secrets/`.
 | L3 | K3s + Calico + node placement | [`bootstrap/k3s/README.md`](../bootstrap/k3s/README.md) | `RUNBOOK.md §L3`, `gates.md§L3` |
 | L4 | Sealed-Secrets controller + key restore | [`platform/sealed-secrets/README.md`](../platform/sealed-secrets/README.md) | `sealed-secrets-key-backup.md` |
 | L5 | Traefik + edge guardrail | [`platform/traefik/README.md`](../platform/traefik/README.md) | `gates.md§L5` |
-| L6 | cert-manager + ClusterIssuers + Cloudflare token | [`platform/cert-manager/README.md`](../platform/cert-manager/README.md) | `secret-recovery.md#cloudflare-api-token` |
-| L7 | Argo CD + Applications (codefolio, go-judge, likec4, synapse, synapse-*, bytebase, monitoring) | [`platform/argocd/README.md`](../platform/argocd/README.md) | `RUNBOOK.md §L7` |
+| L6 | cert-manager + ClusterIssuers + Cloudflare token | [`platform/cert-manager/README.md`](../platform/cert-manager/README.md) | [`secret-recovery.md`](secret-recovery.md#cloudflare-api-token-cert-manager) |
+| L7 | Argo CD + Applications (codefolio, likec4, synapse, synapse-go-judge, synapse-likec4, bytebase, monitoring) | [`platform/argocd/README.md`](../platform/argocd/README.md) | `RUNBOOK.md §L7` |
 | L8 | PostgreSQL StatefulSet + DB restore | [`platform/postgresql/README.md`](../platform/postgresql/README.md) | `scripts/dr/postgres-*.sh` |
 | L9 | Keycloak + realm restore | [`apps/keycloak/README.md`](../apps/keycloak/README.md) | `keycloak-realm-export.md` |
 | L10 | ~~Whoami test app~~ **RETIRED** -- skip to L11 | -- | `RUNBOOK.md §L10` |

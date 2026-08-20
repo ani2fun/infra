@@ -85,7 +85,7 @@ done
 
 ```bash
 ssh ms-1 'kubectl get nodes -o wide'
-# expected: 4 rows, all STATUS=Ready, version v1.35.1+k3s1
+# expected: 4 rows, all STATUS=Ready, version v1.36.3+k3s1
 ```
 
 **L3-B** Calico pods Running.
@@ -183,7 +183,8 @@ ssh ms-1 'kubectl -n argocd get pods'
 
 ```bash
 ssh ms-1 'kubectl -n argocd get application -o wide'
-# expected: 6 rows (codefolio, cortex, cortex-tutor, go-judge, likec4, monitoring)
+# expected: 7 rows (bytebase, codefolio, likec4, monitoring, synapse,
+#                  synapse-go-judge, synapse-likec4)
 # all Synced + Healthy -- EXCEPT monitoring may be Progressing/Degraded until
 # L11 seals its Grafana secrets (its metrics components come up Healthy on their own)
 ```

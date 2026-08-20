@@ -12,9 +12,9 @@ truth -- both for what Argo CD syncs today and for what an operator needs
 to rebuild the cluster from cold metal.
 
 - [`deploy/apps/`](deploy/apps/) -- application manifests. Argo CD syncs
-  `codefolio`, `cortex` (the Scala app), `cortex-tutor` (the Socratic AI
-  coach, internal ClusterIP while WIP), `go-judge` (the shared code-exec
-  sandbox), `likec4` (the system-design diagram SPA), and `monitoring`
+  `codefolio` (now a static portfolio), `synapse` (the Scala learning
+  platform), `synapse-go-judge` (Synapse's code-exec sandbox),
+  `synapse-likec4`, `bytebase`, `likec4` (the system-design diagram SPA), and `monitoring`
   (the VictoriaMetrics + Grafana observability stack in the `monitoring`
   namespace; Grafana at `grafana.kakde.eu`, GitHub-OAuth-locked to one
   admin); `keycloak` and `whoami` are applied manually with
@@ -28,8 +28,9 @@ to rebuild the cluster from cold metal.
 - [`deploy/platform/`](deploy/platform/) -- platform service manifests
   and install scripts (traefik, cert-manager, sealed-secrets, argocd,
   postgresql). **Reference / rebuild only -- not Argo-synced.**
-- [`deploy/dr/`](deploy/dr/) -- disaster-recovery pack: runbook, frozen
-  snapshot, gates, secret-recovery decision tree, keycloak realm export.
+- [`deploy/dr/`](deploy/dr/) -- disaster-recovery pack: rebuild runbook,
+  upgrade runbook, frozen snapshot, gates, secret-recovery decision tree,
+  keycloak realm export, node console recovery.
 - [`deploy/inventory/`](deploy/inventory/) -- nodes, namespaces, network,
   workload catalog. Reference data.
 
