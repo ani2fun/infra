@@ -17,12 +17,6 @@ namespaces:
   - name: argocd
     purpose: GitOps controller and app definitions
 
-  - name: apps
-    purpose: >-
-      legacy namespace, now EMPTY. Held the whoami test app until it was retired
-      in 36d9411 (2026-06-13). Kept only so nothing that still references it breaks;
-      safe to delete once nothing does.
-
   - name: apps-dev
     purpose: development application workloads
     labels:
@@ -57,5 +51,3 @@ namespaces:
       dynamodb-local, kafka, kafbat-ui, rabbitmq). Fake seed data only; safe to destroy.
       NOT Argo-managed — created and removed by deploy/apps/dblab/scripts/lab-*.sh.
 
-  - name: nettest
-    purpose: network testing namespace
