@@ -360,9 +360,10 @@ ssh ms-1 'kubectl get application -n argocd'
 ```
 
 **If `argocd-repo-server` is stuck `0/1` with `copyutil` in `BackOff` (`/bin/ln: Already exists`),
-delete the pod** — its `emptyDir` survived the reboot and the init symlink collides. A fresh pod
-gets a clean volume. Until it is healthy, every Application reads `Sync: Unknown` and no GitOps
-change can apply:
+delete the pod** — the `emptyDir` outlived its containers and the init symlink collides. A fresh
+pod gets a clean volume. Until it is healthy, every Application reads `Sync: Unknown` and no GitOps
+change can apply. This is not reboot-specific: anything that restarts `k3s-agent` does it, which is
+one more reason not to patch a live node outside this runbook:
 
 ```bash
 ssh ms-1 'kubectl delete pod -n argocd -l app.kubernetes.io/name=argocd-repo-server'
@@ -559,7 +560,7 @@ case where the datastore itself is damaged.
 | Extended public outage | `L10-A` failing after `U4` | Traefik is edge-only; check it is scheduled and that the guardrail (`L5-B`) did not reorder host iptables on reboot. |
 | containerd jumps with the K3s minor | Images fail to pull, odd runtime errors | Expected as part of the bump — check the K3s release notes for the containerd version and any runc/cgroup notes. |
 | A hand-edited systemd unit vanishes | A flag you relied on is gone | The installer rewrites the unit every run. Fold any local edit into the install script in Git first. |
-| **`argocd-repo-server` crash-loops after a node reboot** | Pod `0/1`, init container `copyutil` in `BackOff` with `/bin/ln: Already exists`; every Application goes `Sync: Unknown` with `ComparisonError … connection refused` | Its `emptyDir` survives a reboot for the same pod UID, so `copyutil`'s symlink collides on restart. **Delete the pod** — a new one gets a clean volume. Argo cannot self-heal this: with no repo-server it cannot render any manifest, and the Argo pods are pinned to `wk-2` by `workload=argocd` so they cannot move. Observed 2026-08-20 after the `wk-2` reboot; expect it at `U3`. |
+| **`argocd-repo-server` crash-loops after ANY k3s-agent restart** | Pod `0/1`, init container `copyutil` in `BackOff` with `/bin/ln: Already exists`; every Application goes `Sync: Unknown` with `ComparisonError … connection refused` | The pod's `emptyDir` outlives its containers, so once `copyutil` has run successfully its symlink collides on every later re-run. **Delete the pod** — a new one gets a clean volume. Argo cannot self-heal: without repo-server it renders no manifest, and its pods are pinned to `wk-2` by `workload=argocd` so they cannot move. Triggered twice on 2026-08-20 — once by the `wk-2` reboot at 04:32, then again at 09:23 when a bare `apt upgrade -y` on the live node bounced `k3s-agent` and killed the container (`exitCode 255`, `reason Unknown`). Expect it at `U3`, and check for it after any node patching. |
 
 ---
 
@@ -615,6 +616,13 @@ ssh ms-1 'apt-get update && DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=l \
   apt-get -y -o Dpkg::Options::="--force-confold" full-upgrade && apt-get -y autoremove'
 ssh ms-1 'test -f /var/run/reboot-required && echo "reboot needed"'
 ```
+
+> **Do not patch a live node with a bare `apt upgrade -y`.** It omits
+> `NEEDRESTART_MODE=l`, so `needrestart` bounces services in place — on `wk-2` that restarts
+> `k3s-agent`, which kills running containers with `exitCode 255` and leaves
+> `argocd-repo-server` crash-looping on the `copyutil` collision described in the risk register.
+> That happened on 2026-08-20 at 09:24 and took Argo CD down until the pod was deleted. Use the
+> flagged invocation above, and cordon/drain first if the node runs anything you care about.
 
 If a reboot is needed, use the full cordon → drain → reboot → verify → uncordon shape from `U2`
 (for `ms-1`) or `U4` (for `vm-1`). A kernel that is installed but not booted is not protecting
