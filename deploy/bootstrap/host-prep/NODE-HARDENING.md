@@ -120,6 +120,15 @@ stops it firing; installing one would be reassurance rather than cover.
 **Reboot windows are staggered** (`wk-1` 03:30, `wk-2` 04:30) so an upgrade night never takes two
 nodes at once. `prepare-host.sh` reads `UPGRADE_REBOOT_TIME` (default `03:30`).
 
+**`ms-1` and `vm-1` are deliberately excluded** from that automation. `vm-1` is the only public
+entry point, so an unattended 03:30 reboot is an unannounced outage of every `*.kakde.eu` host;
+`ms-1` is the only API server, with no second control-plane node to carry the cluster. Neither
+would be drained first, because the unattended path never drains. The cost of that choice is real
+and was visible by 2026-08-12: both nodes had been carrying pending kernel reboots for 11 and 17
+weeks respectively. The countermeasure is the operator-run patching section in
+[`../../dr/UPGRADE.md`](../../dr/UPGRADE.md) plus a recurring reminder — not automation that
+reboots the control plane and the public edge with nobody watching.
+
 **Still open, and bigger than any of this:** `postgresql-0` is bound to `wk-1` by node-local
 storage and `synapse-go-judge` is pinned there by `nodeSelector`, so the database shares one mini
 PC with the sandbox that executes arbitrary user-submitted code. Whatever wedges that box takes

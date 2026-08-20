@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-export INSTALL_K3S_VERSION="${INSTALL_K3S_VERSION:-v1.35.1+k3s1}"
+export INSTALL_K3S_VERSION="${INSTALL_K3S_VERSION:-v1.36.3+k3s1}"
 
 curl -sfL https://get.k3s.io | \
   K3S_KUBECONFIG_MODE="644" \

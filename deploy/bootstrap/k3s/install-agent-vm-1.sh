@@ -2,7 +2,7 @@
 set -euo pipefail
 
 : "${K3S_TOKEN:?set K3S_TOKEN from ms-1 /var/lib/rancher/k3s/server/node-token}"
-export INSTALL_K3S_VERSION="${INSTALL_K3S_VERSION:-v1.35.1+k3s1}"
+export INSTALL_K3S_VERSION="${INSTALL_K3S_VERSION:-v1.36.3+k3s1}"
 
 curl -sfL https://get.k3s.io | \
   K3S_URL="${K3S_URL:-https://172.27.15.12:6443}" \
