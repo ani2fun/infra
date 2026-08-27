@@ -180,14 +180,6 @@ spec:
             # falls back to the reader's own engine, which costs ~5.9 MB gz but never breaks.
             - name: SYNAPSE_D2_RENDER_URL
               value: http://127.0.0.1:8390
-            # KEPT, and INERT once the image reading SYNAPSE_D2_RENDER_URL is live. It is here so
-            # this manifest is safe in BOTH directions during the cutover: an older image still
-            # reads it and inlines `_media/d2/<hash>.svg`, a newer one ignores it entirely. Drop it
-            # — and the committed `_media/d2` artifacts — once the renderer has been serving for a
-            # while. Do not roll back past 0c50378 while it is on: in an image older than that,
-            # this same value means "compile in the page tier", which is the 5.2 GB OOM path.
-            - name: SYNAPSE_D2_PRERENDER
-              value: "on"
             # TUTOR_ENABLED stays unset: the coach is local-only (ADR-S025) — the
             # chat route never mounts and the client shows "coming soon".
           volumeMounts:
