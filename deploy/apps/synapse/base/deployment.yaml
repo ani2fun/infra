@@ -173,21 +173,19 @@ spec:
                   key: token
             - name: ADMIN_USERS
               value: ani2fun
-            # ON: this container now READS drawn ```d2 figures, it does not draw them. A content
-            # repo compiles its own fences in CI and commits `_media/d2/<hash>.svg`; the page
-            # looks that file up and inlines it, measured at 147 MB of RSS against the 256Mi
-            # limit below.
-            #
-            # It was off because the container used to COMPILE. The d2 engine is a 21 MB wasm
-            # module plus a Go runtime, and one 23-diagram lesson peaked at 5.2 GB — it OOM'd
-            # mid-render, the response died, and the edge turned the dropped connection into a
-            # 502 on exactly the diagram-heavy lessons the feature was built for, while every
-            # other page stayed up because nothing else touched the engine. That is what made it
-            # a quiet failure rather than an obvious one.
-            #
-            # The flag is therefore safe now but its MEANING changed with the image. Do not roll
-            # back past 0c50378 while it is on: in an older image this same value says "compile
-            # here", which is the 5.2 GB path. Turn it off first, then roll back.
+            # ```d2 figures are drawn ON DEMAND by the d2-render container below and inlined at
+            # SSR (ADR-RS009). Same pod, so localhost — and BOTH processes in this container read
+            # it: the Rust server proxies /api/synapse/d2 for a walkthrough's boards, the Astro
+            # sidecar asks for the figures themselves. Unset is the kill switch: every figure
+            # falls back to the reader's own engine, which costs ~5.9 MB gz but never breaks.
+            - name: SYNAPSE_D2_RENDER_URL
+              value: http://127.0.0.1:8390
+            # KEPT, and INERT once the image reading SYNAPSE_D2_RENDER_URL is live. It is here so
+            # this manifest is safe in BOTH directions during the cutover: an older image still
+            # reads it and inlines `_media/d2/<hash>.svg`, a newer one ignores it entirely. Drop it
+            # — and the committed `_media/d2` artifacts — once the renderer has been serving for a
+            # while. Do not roll back past 0c50378 while it is on: in an image older than that,
+            # this same value means "compile in the page tier", which is the 5.2 GB OOM path.
             - name: SYNAPSE_D2_PRERENDER
               value: "on"
             # TUTOR_ENABLED stays unset: the coach is local-only (ADR-S025) — the
@@ -247,6 +245,66 @@ spec:
             capabilities:
               drop:
                 - ALL
+        # ── THE d2 RENDERER (ADR-RS009) ──────────────────────────────────────────────────
+        # Its OWN container because it needs its OWN memory limit. Rendering d2 in the app
+        # container is what caused the 5.2 GB OOM: that was the wasm engine under Node, whose
+        # linear memory never shrinks. The native engine here peaks at 160 MB on the same
+        # 23-diagram lesson — measured in this container shape, under this limit — and a spike
+        # cannot spend the app's 256Mi because it is not sharing it.
+        #
+        # Stateless. The cache is a pure function of diagram source, so an emptyDir is correct:
+        # a restart makes the first reader of each figure wait ~70 ms, and nothing is lost.
+        - name: d2-render
+          # The overlay's `images:` block is authoritative for the tag; this is the placeholder.
+          image: ghcr.io/ani2fun/synapse-d2-render:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: d2
+              containerPort: 8390
+          env:
+            - name: D2_RENDER_ADDR
+              value: ":8390"
+            - name: D2_RENDER_CACHE
+              value: /var/cache/d2-render
+          volumeMounts:
+            - name: d2-cache
+              mountPath: /var/cache/d2-render
+          # No startupProbe: it binds before it does any work, and the app degrades to the client
+          # renderer rather than failing while it comes up.
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8390
+            initialDelaySeconds: 2
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 6
+          livenessProbe:
+            tcpSocket:
+              port: 8390
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 25m
+              memory: 32Mi
+            limits:
+              # 384Mi against a measured 160 MB peak. The headroom is for a diagram larger than
+              # anything in the catalog today; the engine serialises, so concurrency does not
+              # multiply it.
+              cpu: 1000m
+              memory: 384Mi
+          securityContext:
+            # distroless nonroot — the same uid as the app, which is what makes the pod's
+            # fsGroup enough for the cache volume.
+            runAsNonRoot: true
+            runAsUser: 65532
+            runAsGroup: 65532
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
         # The ongoing pull loop — every 60s; the `current` symlink flip is atomic,
         # and the server picks the new SHA up on the next request.
         - name: git-sync
@@ -281,6 +339,10 @@ spec:
         # Satellite checkouts. Sized by the books registered, and reclaimed on every pod restart —
         # the fetcher repopulates it before serving.
         - name: content-cache
+          emptyDir: {}
+        # Drawn figures, keyed by content hash. Immutable by construction, so nothing here needs
+        # to survive a restart — it is a cache in the strict sense.
+        - name: d2-cache
           emptyDir: {}
       securityContext:
         # fsGroup makes the shared `content` emptyDir group-owned (65532) + setgid, so the non-root app
