@@ -354,11 +354,9 @@ ssh root@ms-1 'kubectl apply -f' deploy/platform/argocd/argocd-ingress.yaml
 
 ```bash
 ssh root@ms-1 'kubectl apply -f' deploy/platform/argocd/applications/codefolio.yaml
-ssh root@ms-1 'kubectl apply -f' deploy/platform/argocd/applications/likec4.yaml
 ssh root@ms-1 'kubectl apply -f' deploy/platform/argocd/applications/bytebase.yaml
 ssh root@ms-1 'kubectl apply -f' deploy/platform/argocd/applications/synapse.yaml
 ssh root@ms-1 'kubectl apply -f' deploy/platform/argocd/applications/synapse-go-judge.yaml
-ssh root@ms-1 'kubectl apply -f' deploy/platform/argocd/applications/synapse-likec4.yaml
 ssh root@ms-1 'kubectl apply -f' deploy/platform/argocd/applications/monitoring.yaml   # Grafana stays down until its secrets are sealed in L11
 ```
 

@@ -6,7 +6,7 @@ repo; this file is the *operations* truth. Everything was executed and verified 
 
 > **The app has been Rust since 2026-07-18.** The Scala implementation was replaced **in place** by
 > the rebuild from `ani2fun/synapse-rs`: same ArgoCD app, Service, Ingress, TLS cert, hostname,
-> Postgres database, go-judge and likec4 — only the image and the env shape changed. Rollback is
+> Postgres database and go-judge — only the image and the env shape changed. Rollback is
 > reverting the cutover commit; `ghcr.io/ani2fun/synapse:cde344a72a5330b981290fa91aeaba498c49c1bc`
 > is still in GHCR and must not be pruned while the Rust app is settling. What changed operationally:
 >
@@ -26,7 +26,6 @@ repo; this file is the *operations* truth. Everything was executed and verified 
 |---|---|---|
 | `synapse` | `deploy/apps/synapse/overlays/prod` | The Scala app (`ghcr.io/ani2fun/synapse`, 1 replica — per-pod rate limiter, deliberate) + a **git-sync sidecar** pulling `ani2fun/synapse-content` (public, anonymous https) into a shared emptyDir every 60s. The server reads `SYNAPSE_ROOT=/content/current` and re-indexes when the checkout's HEAD SHA moves — **prose publishing = `git push`, no redeploy**. Ingress `synapse.kakde.eu`. |
 | `synapse-go-judge` | `deploy/apps/synapse-go-judge/overlays/prod` | Synapse's **own** sandbox (`ghcr.io/ani2fun/synapse-go-judge`, built from the synapse repo's `runner/go-judge/`): privileged (cgroup-v2 sandboxing), pinned to wk-1, defines and owns the cluster-scoped `go-judge-low` PriorityClass (moved here when the shared go-judge app was retired), `ES_PARALLELISM=1`, isolation NetworkPolicy (ingress only from synapse, all egress denied). |
-| `synapse-likec4` | `deploy/apps/synapse-likec4/overlays/prod` | The merged `/c4` diagram SPA (`ghcr.io/ani2fun/synapse-likec4`, built by **synapse-content**'s CI from every `.c4` in that repo). Runs on the edge node; only consumer is synapse's `/c4/*` proxy. |
 
 Two Secrets in `apps-prod` (sealed into git):
 
@@ -41,8 +40,9 @@ Two Secrets in `apps-prod` (sealed into git):
 - **Cluster access**: WireGuard tunnel up so `kubectl` works locally (or run kubectl steps on `ms-1`
   over ssh). `kubeseal` installed locally (sealing is offline against a fetched cert — see step 2).
 - **Images on GHCR**: pushing synapse `main` builds `synapse`; `runner/go-judge/**` changes build
-  `synapse-go-judge`; pushing `.c4` files to synapse-content builds `synapse-likec4`. First-time
-  bootstrap: trigger each workflow once (`gh workflow run` or any push) and wait for green.
+  `synapse-go-judge`. synapse-content builds no image at all — content is data on every path
+  (ADR-RS010). First-time bootstrap: trigger each workflow once (`gh workflow run` or any push)
+  and wait for green.
 - **GitHub Actions secrets** on BOTH `ani2fun/synapse` and `ani2fun/synapse-content`
   (Settings → Secrets → Actions), same values as `ani2fun/cortex` uses:
   - `INFRA_REPO_TOKEN` — a PAT with `repo` (contents write) scope on `ani2fun/infra`; the promote
@@ -54,13 +54,12 @@ Two Secrets in `apps-prod` (sealed into git):
 
 ## 1. Manifests
 
-All of `deploy/apps/synapse{,-go-judge,-likec4}` + the three ArgoCD Applications are on infra
+Both of `deploy/apps/synapse{,-go-judge}` + their two ArgoCD Applications are on infra
 `main`. Sanity-check they render:
 
 ```bash
 kubectl kustomize deploy/apps/synapse/overlays/prod >/dev/null && echo ok
 kubectl kustomize deploy/apps/synapse-go-judge/overlays/prod >/dev/null && echo ok
-kubectl kustomize deploy/apps/synapse-likec4/overlays/prod >/dev/null && echo ok
 ```
 
 ## 2. Secrets — retrieve, create, seal, commit
@@ -166,7 +165,6 @@ Applications are applied manually (repo convention — no app-of-apps):
 kubectl apply \
   -f deploy/platform/argocd/applications/synapse.yaml \
   -f deploy/platform/argocd/applications/synapse-go-judge.yaml \
-  -f deploy/platform/argocd/applications/synapse-likec4.yaml
 
 kubectl get applications -n argocd | grep synapse       # → Synced / Healthy (app needs ~2 min: JVM + Liquibase)
 kubectl -n apps-prod get pods | grep synapse
@@ -328,7 +326,7 @@ curl -sI https://synapse.kakde.eu/index.html | grep -i cache-control          # 
 
 In the browser: read a lesson (media, mermaid/d2 diagrams), run code, **Visualise** a hinted
 python/java fence, sign in (realm `synapse`), **Edit** lesson code while signed in, submit on a
-problem (403 without an allowlist row, 202 with), open a `/c4` architecture diagram, ⌘K search,
+problem (403 without an allowlist row, 202 with), click through a d2 walkthrough, ⌘K search,
 blog, the library tour.
 
 ## Security posture & audit (2026-07-14)
@@ -352,7 +350,8 @@ validate CSP changes against prod-shaped serving and the heaviest pages (Monaco 
 **Verified clean:** RS256 pinned (no alg-confusion / alg:none), issuer+audience+expiry checked, JWKS
 cached/rotated; account deletion is self-only (token's own `sub`); submission delete/erase are
 owner-scoped (no IDOR); every SQL path is a PreparedStatement; the content cache header never stamps
-an authenticated route; LikeC4 proxy host is fixed (no SSRF); media/static path-traversal guards hold
+an authenticated route; the d2-render proxy host is fixed (no SSRF); media/static path-traversal
+guards hold
 (realpath + confine); the admin panel renders via Laminar text nodes (no XSS); tokens live in
 keycloak-js memory (not localStorage); no secrets in the repo.
 
@@ -384,8 +383,6 @@ keycloak-js memory (not localStorage); no secrets in the repo.
 | Sign-in fails with realm/issuer errors | Realm not imported, or the Deployment's `OIDC_ISSUER` doesn't match `https://keycloak.kakde.eu/realms/synapse`. |
 | `/api/me` → 503 `Token verifier unavailable … error sending request for url (…/openid-connect/certs)`, account menu stays on "Sign in" | The app has **no TLS backend compiled in** — `reqwest` with `default-features = false` needs an explicit `rustls-tls`. Every `https://` call dies at the connector with `invalid URL, scheme is not http`. Invisible in dev, where go-judge, Ollama and Keycloak are all plain `http://`, so the production JWKS fetch is the only https caller. Hit on the cutover day, 2026-07-18; guarded by `outbound_tls_it`. |
 | Edge cert renewal fails later | CAA got tightened to LE-only — re-allow `pki.goog` too. |
-| LikeC4 image builds but diagrams are broken | Never name the content-repo dockerfile `Dockerfile.likec4` — likec4 parses `**/*.likec4` as model sources; it must stay `likec4.Dockerfile`. |
-| `/c4/` 404 through the domain while the likec4 pod is healthy | The app's proxy STRIPS the `/c4` prefix and the nginx image serves the SPA UNDER `/c4/` — `LIKEC4_URL` must be `http://synapse-likec4/c4` (hit + fixed on first deploy). Separately, the trailing-slash form needed its own route in the proxy: axum's `{*rest}` wildcard doesn't match an empty remainder (fixed 2026-07-18). |
 | App CrashLoopBackOff with `expected u16 for key "PORT"` | Kubernetes injects legacy Docker-link env for every Service in the namespace, and this Service is named `synapse` — so it injects `SYNAPSE_PORT=tcp://10.43.x.x:80`, which overrides the image's `8080` and fails to parse. Keep **`enableServiceLinks: false`** on the pod spec. Found by booting the real image in `apps-prod` during the cutover rehearsal. |
 | App boots but the catalog is empty | `SYNAPSE_ROOT` must be `/content/**current**` (git-sync's symlink), not the `/content` mount — the image's own default is the mount. |
 | Pod `CreateContainerConfigError` right after re-sealing secrets | `seal-synapse-secrets.sh` takes the **`synapse-admin` client secret** (sealed as key `client-secret`), not the Keycloak bootstrap admin pair. It used to seal `username`/`password`, which no longer matches the Deployment (corrected 2026-07-18). |

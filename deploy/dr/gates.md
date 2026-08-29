@@ -183,8 +183,7 @@ ssh ms-1 'kubectl -n argocd get pods'
 
 ```bash
 ssh ms-1 'kubectl -n argocd get application -o wide'
-# expected: 7 rows (bytebase, codefolio, likec4, monitoring, synapse,
-#                  synapse-go-judge, synapse-likec4)
+# expected: 5 rows (bytebase, codefolio, monitoring, synapse, synapse-go-judge)
 # all Synced + Healthy -- EXCEPT monitoring may be Progressing/Degraded until
 # L11 seals its Grafana secrets (its metrics components come up Healthy on their own)
 ```

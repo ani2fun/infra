@@ -7,9 +7,9 @@ metadata:
   # is denied. Mirrors the isolation pattern used by synapse-go-judge.
   #
   # Kubelet health probes are host-sourced and are NOT affected by pod
-  # NetworkPolicies in this Calico cluster (verified: likec4 runs httpGet probes
-  # under a default-deny ingress policy and stays Ready), so vmsingle's /health
-  # probe keeps working.
+  # NetworkPolicies in this Calico cluster (verified against a workload running
+  # httpGet probes under a default-deny ingress policy: it stayed Ready), so
+  # vmsingle's /health probe keeps working.
   name: vmsingle-allow-ingress
   labels:
     app.kubernetes.io/name: vmsingle

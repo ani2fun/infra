@@ -16,7 +16,7 @@ Currently parked:
   workstation) and dropped. To revive: recreate the DB from the dump
   (`bootstrap.sql` + restore), move these files up, re-run `configure-argocd.sh`.
   The `apps-prod` Keycloak realm and its `cortex-web` client were left in place
-  (no resource cost). Shared `likec4` stays.
+  (no resource cost).
 
   **Reviving cortex now also requires restoring an executor.** The shared
   `go-judge` app was retired on 2026-08-20 (see below). The note that used to

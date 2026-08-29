@@ -4,7 +4,7 @@ metadata:
   # Owned by cortex, targets go-judge pods. Lets cortex's /api/run code-runner reach the shared
   # go-judge sandbox executor (deploy/apps/go-judge) on :5050. Stacks additively with the existing
   # go-judge-isolation policy (which only admits codefolio) — the split added cortex as a second
-  # consumer, so it needs its own ingress allowance (sibling of networkpolicy-likec4.yaml).
+  # consumer, so it needs its own ingress allowance.
   name: go-judge-allow-ingress-from-cortex
 spec:
   podSelector:

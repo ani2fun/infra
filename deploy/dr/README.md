@@ -60,7 +60,7 @@ Companion scripts under `scripts/dr/` and `scripts/secrets/`.
 | L4 | Sealed-Secrets controller + key restore | [`platform/sealed-secrets/README.md`](../platform/sealed-secrets/README.md) | `sealed-secrets-key-backup.md` |
 | L5 | Traefik + edge guardrail | [`platform/traefik/README.md`](../platform/traefik/README.md) | `gates.md§L5` |
 | L6 | cert-manager + ClusterIssuers + Cloudflare token | [`platform/cert-manager/README.md`](../platform/cert-manager/README.md) | [`secret-recovery.md`](secret-recovery.md#cloudflare-api-token-cert-manager) |
-| L7 | Argo CD + Applications (codefolio, likec4, synapse, synapse-go-judge, synapse-likec4, bytebase, monitoring) | [`platform/argocd/README.md`](../platform/argocd/README.md) | `RUNBOOK.md §L7` |
+| L7 | Argo CD + Applications (codefolio, synapse, synapse-go-judge, bytebase, monitoring) | [`platform/argocd/README.md`](../platform/argocd/README.md) | `RUNBOOK.md §L7` |
 | L8 | PostgreSQL StatefulSet + DB restore | [`platform/postgresql/README.md`](../platform/postgresql/README.md) | `scripts/dr/postgres-*.sh` |
 | L9 | Keycloak + realm restore | [`apps/keycloak/README.md`](../apps/keycloak/README.md) | `keycloak-realm-export.md` |
 | L10 | ~~Whoami test app~~ **RETIRED** -- skip to L11 | -- | `RUNBOOK.md §L10` |

@@ -44,10 +44,6 @@ spec:
             # Visualise tracer (ADR-0029). Shared cluster service (deploy/apps/go-judge).
             - name: EXECUTOR_URL
               value: http://go-judge:5050
-            # LikeC4 SPA (system-design diagrams), reverse-proxied at /c4/*. Shared cluster service
-            # (deploy/apps/likec4); the networkpolicy-likec4 below grants cortex ingress to it.
-            - name: LIKEC4_URL
-              value: http://likec4
             - name: CORTEX_AUTO_RELOAD
               value: "false"
             # Auth (ADR-0013): JWTs validated against the homelab Keycloak. The cortex-web public

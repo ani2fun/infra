@@ -6,5 +6,4 @@ resources:
   - service.yaml
   - redis.yaml
   - mongo.yaml
-  - networkpolicy-likec4.yaml
   - networkpolicy-go-judge.yaml
