@@ -100,19 +100,19 @@ spec:
             - name: SYNAPSE_ROOT
               value: /content/current
             # contentVersion = the checkout's git HEAD SHA, re-read per request
-            # (ContentCommitSha) — a sidecar pull re-indexes the catalog with no redeploy.
+            # (ContentCommitSha) — a content-sync pull re-indexes the catalog with no redeploy.
             - name: SYNAPSE_AUTO_RELOAD
               value: "false"
             # SATELLITE BOOKS (ADR-RS005). Books live in their own repositories now, registered
-            # from /admin rather than declared here — the app cannot add a git-sync sidecar to
+            # from /admin rather than declared here — the app cannot add a git-sync Deployment for
             # itself at runtime, so it fetches their tarballs from the GitHub API instead and
             # unpacks them under this cache. An emptyDir is deliberate: the layout is
             # <id>/<sha>/ with a `current` symlink, every commit is re-fetchable, and a cold boot
             # simply refetches. Nothing here is a system of record.
             - name: SYNAPSE_CONTENT_CACHE
               value: /content-cache
-            # The reconcile cadence, matching the git-sync sidecar's so the whole library moves on
-            # one clock — and the one `content_cache_control` max-age is tuned to. 0 disables it.
+            # The reconcile cadence, matching the content-sync Deployment's so the whole library
+            # moves on one clock — and the one `content_cache_control` max-age is tuned to. 0 disables it.
             - name: SYNAPSE_CONTENT_SYNC_SECONDS
               value: "60"
             # sqlx takes ONE connection URL with the credentials inline — there is no
