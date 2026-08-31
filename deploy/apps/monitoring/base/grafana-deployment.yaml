@@ -97,6 +97,45 @@ spec:
               value: "true"
             - name: GF_AUTH_GITHUB_ALLOW_ASSIGN_GRAFANA_ADMIN
               value: "true"
+            # --- SMTP, the delivery path for provisioned alerts ---
+            # Without this an alert only ever changes colour in the UI, which nobody is watching.
+            # Host and from-address are NOT secret and stay readable here; only the mailbox user
+            # and its app password come from the sealed `grafana-smtp` secret.
+            #
+            # Defaulted to Gmail because the recipient is a Gmail address, and Gmail rejects an
+            # account password over SMTP — the value in the secret must be an APP PASSWORD, minted
+            # with 2FA on. A different provider is a one-line change to the two values below.
+            - name: GF_SMTP_ENABLED
+              value: "true"
+            - name: GF_SMTP_HOST
+              value: smtp.gmail.com:587
+            - name: GF_SMTP_FROM_NAME
+              value: Homelab Grafana
+            # Gmail rewrites the envelope sender to the authenticated mailbox anyway, so this must
+            # match the SMTP user or the message is rejected outright.
+            - name: GF_SMTP_FROM_ADDRESS
+              value: a.r.kakde@gmail.com
+            # OPTIONAL, and deliberately so: a hard secretKeyRef for a secret that does not
+            # exist yet wedges the pod in CreateContainerConfigError, which would take
+            # grafana.kakde.eu down to ship an alert about something that is not down. Until
+            # `grafana-smtp` is sealed these are simply unset — Grafana boots, the rule evaluates,
+            # and the alert is visible in the UI; only mail delivery is missing. Seal the secret
+            # and restart to complete the path:
+            #   scripts/secrets/rotate-generic-secret.sh monitoring grafana-smtp \
+            #     deploy/apps/monitoring/overlays/prod/grafana-smtp-sealedsecret.yaml \
+            #     user=<gmail-address> password=<16-char-app-password>
+            - name: GF_SMTP_USER
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-smtp
+                  key: user
+                  optional: true
+            - name: GF_SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-smtp
+                  key: password
+                  optional: true
           readinessProbe:
             httpGet:
               path: /api/health
@@ -131,6 +170,9 @@ spec:
             - name: dashboards
               mountPath: /var/lib/grafana/dashboards
               readOnly: true
+            - name: alerting
+              mountPath: /etc/grafana/provisioning/alerting
+              readOnly: true
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -148,3 +190,6 @@ spec:
         - name: dashboards
           configMap:
             name: grafana-dashboards
+        - name: alerting
+          configMap:
+            name: grafana-alerting

@@ -1,0 +1,118 @@
+---
+# Grafana unified alerting, provisioned from files (Grafana 13 reads every *.yaml under
+# /etc/grafana/provisioning/alerting at boot). Provisioned objects are READ-ONLY in the UI —
+# edit them here, not in the browser.
+#
+# There is no vmalert and no Alertmanager in this cluster: Grafana already holds the
+# VictoriaMetrics datasource and its own evaluator, so a rule here costs no extra workload on a
+# RAM-tight cluster.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-alerting
+  labels:
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: monitoring
+data:
+  contactpoints.yaml: |
+    apiVersion: 1
+    contactPoints:
+      - orgId: 1
+        name: email-admin
+        receivers:
+          - uid: email-admin
+            type: email
+            settings:
+              addresses: a.r.kakde@gmail.com
+              singleEmail: true
+
+  policies.yaml: |
+    apiVersion: 1
+    policies:
+      # REPLACES the default policy tree, so every alert in this Grafana routes here.
+      - orgId: 1
+        receiver: email-admin
+        group_by:
+          - grafana_folder
+          - alertname
+        # Slow on purpose. Nothing here is pageable — these are "go look when convenient"
+        # alerts, and a homelab mailbox should not get a message every 5 minutes.
+        group_wait: 1m
+        group_interval: 10m
+        repeat_interval: 12h
+
+  rules.yaml: |
+    apiVersion: 1
+    groups:
+      - orgId: 1
+        name: synapse
+        folder: Synapse
+        interval: 1m
+        rules:
+          - uid: synapse-git-sync-stalled
+            title: Synapse content sync stalled
+            # WHY THIS EXISTS: git-sync runs with --max-failures=-1, so a persistently failing
+            # fetch no longer crashes the container — which is the whole point, because a dead
+            # git-sync takes synapse.kakde.eu to a hard 404. The cost of that fix is that failure
+            # is now SILENT: the site stays up serving stale content and nothing complains. This
+            # rule is the replacement signal.
+            condition: C
+            data:
+              # COUNTS noop AS HEALTHY, and that is the load-bearing detail. git-sync records
+              # `success` only when the checkout actually CHANGED (`changed || syncCount == 0`);
+              # an unchanged repo records `noop`. Prose is published rarely, so alerting on
+              # `success` alone would fire on a perfectly healthy sidecar almost all the time.
+              # What "healthy" really means is: a fetch COMPLETED, changed or not.
+              - refId: A
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: victoriametrics
+                model:
+                  refId: A
+                  editorMode: code
+                  instant: true
+                  range: false
+                  expr: sum(increase(git_sync_count_total{namespace="apps-prod", status=~"success|noop"}[15m]))
+              - refId: C
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: A
+                  datasource:
+                    type: __expr__
+                    uid: __expr__
+                  conditions:
+                    - type: query
+                      evaluator:
+                        type: lt
+                        params:
+                          - 1
+                      operator:
+                        type: and
+                      reducer:
+                        type: last
+                        params: []
+                      query:
+                        params:
+                          - C
+            # A fetch every 60s means ~15 completions per window; zero means it is stuck.
+            for: 5m
+            # NoData is a REAL alert here, not noise to suppress: it means the git-sync container
+            # is gone, not scraped, or never came back — which is exactly the condition where the
+            # `== 0` expression has no series to match and would otherwise stay silent forever.
+            noDataState: Alerting
+            execErrState: Alerting
+            labels:
+              severity: warning
+              app: synapse
+            annotations:
+              summary: synapse content sync has not completed a fetch in 15 minutes
+              description: >-
+                git-sync in apps-prod/synapse has completed no successful fetch (changed or
+                unchanged) for 15 minutes. The site stays UP on the last good checkout, so this
+                is not an outage — but prose published to synapse-content is no longer reaching
+                production. Check `kubectl -n apps-prod logs -l app.kubernetes.io/name=synapse
+                -c git-sync` for "error syncing repo, will retry"; a persistent GitHub 401 there
+                usually means the PAT in the synapse-github secret has expired.

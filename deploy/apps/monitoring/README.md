@@ -36,6 +36,7 @@ ssh wk-1 'free -h && df -h /var/lib/rancher/k3s/storage'
 - `base/vlsingle-{deployment,pvc,service}.yaml` — VictoriaLogs store (logs counterpart of vmsingle, 20Gi local-path PVC)
 - `base/vector-{rbac,configmap,daemonset}.yaml` — Vector log collector on all 4 nodes → vlsingle `/insert/elasticsearch/`
 - `base/grafana-{datasource,dashboards-provider,dashboards}-configmap.yaml` — provisioned datasources (VictoriaMetrics + VictoriaLogs) + a starter "Homelab Overview" dashboard
+- `base/grafana-alerting-configmap.yaml` — provisioned alert rules, contact point and notification policy (see "Alerting")
 - `base/grafana-{deployment,service}.yaml` — Grafana with GitHub OAuth
 - `base/networkpolicy-{vmsingle,vlsingle}.yaml` — lock the auth-less datastores to their known clients (see "Network isolation" below)
 - `overlays/prod/ingress.yaml` — `grafana.kakde.eu` (Traefik + cert-manager, same pattern as cortex/keycloak)
@@ -89,9 +90,48 @@ extending that path, e.g.
   `client-secret`). Restored automatically by sealed-secrets if the controller
   key is present, otherwise recreate the OAuth App at github.com and reseal.
 - `grafana-admin` — break-glass local admin (keys: `admin-user`, `admin-password`).
+- `grafana-smtp` — alert-mail sender (keys: `user`, `password`). **OPTIONAL** and not
+  in this repo: both refs are `optional: true`, so Grafana boots and evaluates rules
+  without it — only mail delivery is missing. Not a placeholder SealedSecret, because
+  a placeholder would be a real secret holding a wrong password, and Grafana would
+  keep failing to send with no clue why.
 
-Both ship as **placeholder** SealedSecrets — seal real values before the first
+The first two ship as **placeholder** SealedSecrets — seal real values before the first
 Argo sync or Grafana won't start. See [`../../dr/secret-recovery.md`](../../dr/secret-recovery.md).
+
+## Alerting
+
+Grafana's own unified alerting, provisioned from files
+(`base/grafana-alerting-configmap.yaml` → `/etc/grafana/provisioning/alerting`).
+**No vmalert and no Alertmanager**: Grafana already holds the VictoriaMetrics
+datasource and an evaluator, so a rule costs no extra workload on a RAM-tight
+cluster. Provisioned objects are **read-only in the UI** — edit the ConfigMap.
+
+Rules today:
+
+- **Synapse content sync stalled** — git-sync in `apps-prod/synapse` has completed
+  no fetch for 15 minutes. It exists because that sidecar runs `--max-failures=-1`
+  (a crash there 404s the whole site, so it must never exit), which makes a broken
+  fetch *silent*: the site stays up serving stale content and nothing complains.
+
+  The expression counts `status=~"success|noop"`, and the `noop` half is
+  load-bearing: git-sync records `success` only when the checkout actually
+  **changed**, and an unchanged repo records `noop`. Prose is published rarely, so
+  a rule watching `success` alone would fire on a perfectly healthy sidecar nearly
+  all the time. `noDataState: Alerting` covers the container vanishing entirely,
+  which the `== 0` expression cannot see because there is no series to match.
+
+To enable mail delivery (until then alerts only change colour in the UI):
+
+```bash
+scripts/secrets/rotate-generic-secret.sh monitoring grafana-smtp \
+  deploy/apps/monitoring/overlays/prod/grafana-smtp-sealedsecret.yaml \
+  user=<gmail-address> password=<16-char-app-password>
+```
+
+then add it to `overlays/prod/kustomization.yaml` and restart Grafana. Gmail
+rejects an account password over SMTP — mint an **app password** with 2FA on.
+`GF_SMTP_FROM_ADDRESS` must equal the SMTP user or Gmail rejects the message.
 
 ## Operator setup (one-time)
 

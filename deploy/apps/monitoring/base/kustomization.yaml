@@ -28,6 +28,7 @@ resources:
   - grafana-datasource-configmap.yaml
   - grafana-dashboards-provider-configmap.yaml
   - grafana-dashboards-configmap.yaml
+  - grafana-alerting-configmap.yaml
   - grafana-deployment.yaml
   - grafana-service.yaml
   # Network isolation: lock the auth-less datastores to their known clients.
