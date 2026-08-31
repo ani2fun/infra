@@ -1,0 +1,31 @@
+# The content checkout, shared between the `synapse-content-sync` Deployment (sole WRITER) and
+# the `synapse` app pod (READER). It is a PVC rather than an emptyDir for one reason: an emptyDir
+# lives and dies with a single pod, and the whole point of splitting git-sync out is that the two
+# now have independent lifecycles.
+#
+# local-path is node-local and NOT replicated, and its binding mode is WaitForFirstConsumer — so
+# this PVC pins to whichever node mounts it first and stays there. BOTH Deployments therefore
+# carry `nodeSelector: kubernetes.io/hostname: wk-1`, deliberately and not as a detail: without
+# the pin, the second pod to schedule could land on a node the volume is not on and hang forever
+# on mount. This is the cost of having no RWX storage class in the cluster (same constraint, same
+# resolution, as vmsingle in the monitoring app).
+#
+# 5Gi against a shallow (--depth=1) clone of prose plus media — generous, and cheap to grow into.
+# Nothing here is a system of record: the volume is a cache of a git repository and a cold rebuild
+# is one clone away.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: synapse-content
+  labels:
+    app.kubernetes.io/name: synapse
+    app.kubernetes.io/component: content
+spec:
+  accessModes:
+    # RWO is "one NODE", not "one pod" — which is exactly why the node pin above is what makes
+    # two pods sharing this legal. Both mount it from wk-1.
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 5Gi

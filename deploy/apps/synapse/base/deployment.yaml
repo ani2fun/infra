@@ -13,14 +13,6 @@ spec:
       app.kubernetes.io/component: app
   template:
     metadata:
-      # Picked up by the monitoring stack's `annotated-pods` scrape job, which needs no change to
-      # take a new target. The port is git-sync's metrics endpoint, NOT the app's: content sync is
-      # the thing that now fails silently, because --max-failures=-1 means a broken fetch no longer
-      # crashes anything. See the "Synapse content sync stalled" alert in the monitoring app.
-      annotations:
-        prometheus.io/scrape: "true"
-        prometheus.io/port: "9090"
-        prometheus.io/path: /metrics
       labels:
         app.kubernetes.io/name: synapse
         app.kubernetes.io/component: app
@@ -38,46 +30,48 @@ spec:
       # (main.rs sweeps rows unfinished for >15m and completes them as JudgeFailed), which is the
       # only thing that also survives an OOM kill or a node failure.
       terminationGracePeriodSeconds: 30
-      # Content ships by git-sync, NOT in the image (ADR-S003/S033): the sidecar
-      # pulls ani2fun/synapse-content (public, anonymous https) into a shared
-      # emptyDir; the server reads SYNAPSE_ROOT=/content/current (git-sync's
-      # stable symlink) and re-indexes when the checkout's HEAD SHA advances —
-      # prose publishing is a `git push`, live within a minute, zero redeploys.
+      # Pinned because the `synapse-content` PVC is local-path — node-local and not replicated, so
+      # it binds to one node and stays there. The content-sync Deployment carries the identical
+      # selector; if the two ever disagree, whichever pod lands elsewhere hangs forever on mount.
+      # This is the cost of the cluster having no RWX storage class, and it is the reason a node
+      # loss now needs a hand rather than rescheduling itself.
+      nodeSelector:
+        kubernetes.io/hostname: wk-1
+      # Content ships by git-sync, NOT in the image (ADR-S003/S033), but git-sync is no longer in
+      # THIS pod — it is the `synapse-content-sync` Deployment, writing the shared `synapse-content`
+      # PVC that this pod mounts read-only. The server reads SYNAPSE_ROOT=/content/current
+      # (git-sync's stable symlink, flipped atomically per pull) and re-indexes when the checkout's
+      # HEAD SHA advances, so prose publishing is still a `git push`, live within a minute, zero
+      # redeploys. The split exists because a sidecar that dies takes the whole pod NotReady and
+      # 404s the site; see content-sync-deployment.yaml.
       initContainers:
-        # One-time clone BEFORE the app starts, so the catalog is never empty at boot.
-        - name: content-init
-          image: registry.k8s.io/git-sync/git-sync:v4.4.0
-          args:
-            - --repo=https://github.com/ani2fun/synapse-content.git
-            - --ref=main
-            - --root=/content
-            - --link=current
-            - --depth=1
-            - --one-time
-            # BOUNDED, unlike the sidecar's -1: this gates pod startup, so a permanent error must
-            # eventually surface as a failed pod rather than an endless Init. git-sync defaults
-            # this to 0, which aborts on the FIRST failed fetch — one throttled request from
-            # GitHub and the pod never boots at all. Five attempts rides out a blip; it will not
-            # ride out a deleted repo.
-            - --max-failures=5
-          env:
-            # The same credentials the sidecar below uses, and for the same reason: anonymous git
-            # traffic from this egress IP gets 401s from GitHub even though the repo is public.
-            # An unauthenticated clone here fails the whole pod, so it is the LAST place that
-            # should be relying on anonymous access.
-            - name: GITSYNC_USERNAME
-              value: ani2fun
-            - name: GITSYNC_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: synapse-github
-                  key: token
+        # A GATE, not a clone. It must never write to /content: the content-sync Deployment is the
+        # sole writer, and a second writer on one git working tree corrupts it rather than merely
+        # racing. All this does is hold the app back until there is a catalog to serve, preserving
+        # the invariant the old cloning init container gave us — the app never boots onto an empty
+        # /content. Warm PVC: passes instantly. Fresh PVC: waits for the first clone, which is
+        # correct, and visible as `Init:0/1` rather than a silently empty site.
+        - name: content-wait
+          image: busybox:1.37.0
+          command:
+            - sh
+            - -c
+            - 'until [ -e /content/current ]; do echo "waiting for content-sync to populate /content"; sleep 2; done'
           volumeMounts:
             - name: content
               mountPath: /content
+              readOnly: true
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 100m
+              memory: 32Mi
           securityContext:
             runAsNonRoot: true
-            runAsUser: 65533 # git-sync's own non-root user
+            runAsUser: 65532
+            runAsGroup: 65532
             allowPrivilegeEscalation: false
             capabilities:
               drop:
@@ -317,65 +311,14 @@ spec:
             capabilities:
               drop:
                 - ALL
-        # The ongoing pull loop — every 60s; the `current` symlink flip is atomic,
-        # and the server picks the new SHA up on the next request.
-        - name: git-sync
-          image: registry.k8s.io/git-sync/git-sync:v4.4.0
-          args:
-            - --repo=https://github.com/ani2fun/synapse-content.git
-            - --ref=main
-            - --root=/content
-            - --link=current
-            - --depth=1
-            - --period=60s
-            # NEVER exit on a failed fetch. Pod readiness is the AND of every container, and
-            # Traefik DELETES a router whose service has no endpoints rather than failing the
-            # backend — so a git-sync that dies takes synapse.kakde.eu to a hard 404, not a
-            # degraded page. git-sync defaults this to 0, meaning abort on the FIRST failure;
-            # -1 retries forever. A transient GitHub 401 must cost stale content, never
-            # availability.
-            - --max-failures=-1
-            # Metrics are OFF by default and need BOTH flags — --http-metrics alone is a fatal
-            # config error. 9090 is free in this pod: 8080 is axum, 4321 the Astro sidecar, 8390
-            # d2-render. This is what makes the silent failure mode observable.
-            - --http-bind=:9090
-            - --http-metrics
-          ports:
-            - name: metrics
-              containerPort: 9090
-          env:
-            # Anonymous git traffic from this egress IP is throttled by GitHub with a 401 on
-            # POST git-upload-pack, even though the repo is public — the ref listing succeeds and
-            # the fetch itself is refused. Authenticating lifts the limit. The username is a
-            # placeholder: GitHub authenticates on the PAT alone, but git-sync refuses to start
-            # with a password and no username.
-            - name: GITSYNC_USERNAME
-              value: ani2fun
-            - name: GITSYNC_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: synapse-github
-                  key: token
-          volumeMounts:
-            - name: content
-              mountPath: /content
-          resources:
-            requests:
-              cpu: 10m
-              memory: 32Mi
-            limits:
-              cpu: 100m
-              memory: 128Mi
-          securityContext:
-            runAsNonRoot: true
-            runAsUser: 65533
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop:
-                - ALL
       volumes:
+        # The SHARED checkout, written by the `synapse-content-sync` Deployment and mounted
+        # read-only here. A PVC rather than an emptyDir because the writer now lives in a
+        # different pod with an independent lifecycle. local-path is node-local, which is what
+        # the nodeSelector above is for — see pvc.yaml.
         - name: content
-          emptyDir: {}
+          persistentVolumeClaim:
+            claimName: synapse-content
         # Satellite checkouts. Sized by the books registered, and reclaimed on every pod restart —
         # the fetcher repopulates it before serving.
         - name: content-cache
@@ -385,8 +328,15 @@ spec:
         - name: d2-cache
           emptyDir: {}
       securityContext:
-        # fsGroup makes the shared `content` emptyDir group-owned (65532) + setgid, so the non-root app
-        # container reads what the git-sync sidecar (uid 65533) writes into it.
+        # fsGroup makes the shared `content` volume group-owned (65532) + setgid, so this non-root
+        # app container reads what git-sync (uid 65533) writes from the content-sync pod. That pod
+        # MUST declare the same fsGroup — the two are one setting split across two files, and
+        # changing it here alone silently breaks the app's ability to read the catalog.
         fsGroup: 65532
+        # Without this the kubelet recursively chowns the ENTIRE checkout on every pod start —
+        # thousands of prose and media files — which is pure latency on a volume the content-sync
+        # pod has already set up correctly. OnRootMismatch only walks it when the root directory's
+        # ownership is actually wrong, i.e. once.
+        fsGroupChangePolicy: OnRootMismatch
         seccompProfile:
           type: RuntimeDefault

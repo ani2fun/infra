@@ -1,0 +1,121 @@
+# ── THE CONTENT SYNC ──────────────────────────────────────────────────────────────────────
+# git-sync used to be a sidecar in the synapse pod. It is a Deployment of its own because pod
+# readiness is the AND of every container: when the sidecar died, the app pod went NotReady, left
+# the EndpointSlice, and Traefik DELETED the router for a service with no endpoints — so a failed
+# `git fetch` served a hard 404 for the whole site while the app itself was perfectly healthy.
+#
+# --max-failures=-1 already stops that for fetch failures specifically. This split removes the
+# coupling itself: out here git-sync can die for ANY reason — OOM, a failed image pull, a future
+# bug — and serving is untouched, because a container that is not in the serving pod cannot make
+# the serving pod NotReady.
+#
+# Publishing prose is still a `git push`, live within a minute, zero redeploys (ADR-S003/S033).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: synapse-content-sync
+spec:
+  replicas: 1
+  # RECREATE, NOT RollingUpdate — the load-bearing line in this file. A rolling update starts the
+  # new pod before the old one terminates, which would put TWO git-sync processes on one git
+  # working tree. That corrupts the checkout rather than merely racing. Recreate accepts a few
+  # seconds without a syncer, which costs nothing: the app reads the volume, not this pod.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: synapse
+      app.kubernetes.io/component: content-sync
+  template:
+    metadata:
+      # The metrics endpoint moved here with the container, so the `annotated-pods` scrape job in
+      # the monitoring app follows it — and the app pod's annotations were removed, or vmagent
+      # would scrape a port nothing listens on. The "Synapse content sync stalled" alert needs no
+      # change: it selects on namespace alone and sums across pods.
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: /metrics
+      labels:
+        app.kubernetes.io/name: synapse
+        # `content-sync`, and NEVER `app`. The synapse Service selects name=synapse AND
+        # component=app; reusing `app` here would enrol this pod in the Service and Traefik would
+        # round-robin HTTP into a container with no web server — converting a change that exists
+        # to PREVENT an outage into a 50%-error one.
+        app.kubernetes.io/component: content-sync
+    spec:
+      # Same reason as the app pod: k8s would otherwise inject SYNAPSE_PORT=tcp://… for the
+      # `synapse` Service. Nothing here reads it, but the injection is noise and the app pod's
+      # comment explains why it is never wanted.
+      enableServiceLinks: false
+      # Pinned because the local-path PVC is node-local; see pvc.yaml. The app pod carries the
+      # same selector, and the two MUST agree or one of them cannot mount the volume.
+      nodeSelector:
+        kubernetes.io/hostname: wk-1
+      containers:
+        - name: git-sync
+          image: registry.k8s.io/git-sync/git-sync:v4.4.0
+          args:
+            - --repo=https://github.com/ani2fun/synapse-content.git
+            - --ref=main
+            - --root=/content
+            - --link=current
+            - --depth=1
+            - --period=60s
+            # NEVER exit on a failed fetch. Out here that no longer costs availability, but it is
+            # still right: a restart loop re-clones and re-hammers GitHub, where retrying in place
+            # costs nothing and keeps the last good checkout on disk. git-sync defaults this to 0,
+            # meaning abort on the FIRST failure; -1 retries forever.
+            - --max-failures=-1
+            # Metrics are OFF by default and need BOTH flags — --http-metrics alone is a fatal
+            # config error.
+            - --http-bind=:9090
+            - --http-metrics
+          ports:
+            - name: metrics
+              containerPort: 9090
+          env:
+            # Anonymous git traffic from this egress IP is throttled by GitHub with a 401 on
+            # POST git-upload-pack, even though the repo is public — the ref listing succeeds and
+            # the fetch itself is refused. Authenticating lifts the limit. The username is a
+            # placeholder: GitHub authenticates on the PAT alone, but git-sync refuses to start
+            # with a password and no username.
+            - name: GITSYNC_USERNAME
+              value: ani2fun
+            - name: GITSYNC_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: synapse-github
+                  key: token
+          volumeMounts:
+            # WRITEABLE here and read-only in the app pod: this Deployment is the sole writer.
+            - name: content
+              mountPath: /content
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65533 # git-sync's own non-root user
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+      volumes:
+        - name: content
+          persistentVolumeClaim:
+            claimName: synapse-content
+      securityContext:
+        # MUST match the app pod's fsGroup. git-sync writes as uid 65533; the app reads as 65532.
+        # fsGroup makes the volume group-owned by 65532 and setgid, so files created here are
+        # readable there. Two pods, one group, one volume — change it in one place and the app
+        # stops being able to read the catalog.
+        fsGroup: 65532
+        # Same reason as the app pod: only walk the tree when the root's ownership is wrong.
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
