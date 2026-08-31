@@ -102,19 +102,20 @@ spec:
             # Host and from-address are NOT secret and stay readable here; only the mailbox user
             # and its app password come from the sealed `grafana-smtp` secret.
             #
-            # Defaulted to Gmail because the recipient is a Gmail address, and Gmail rejects an
-            # account password over SMTP — the value in the secret must be an APP PASSWORD, minted
-            # with 2FA on. A different provider is a one-line change to the two values below.
+            # Gmail, and it rejects an account password over SMTP — the value in the secret must
+            # be an APP PASSWORD, minted with 2FA on. A different provider is a one-line change to
+            # the host below.
             - name: GF_SMTP_ENABLED
               value: "true"
             - name: GF_SMTP_HOST
               value: smtp.gmail.com:587
             - name: GF_SMTP_FROM_NAME
               value: Homelab Grafana
-            # Gmail rewrites the envelope sender to the authenticated mailbox anyway, so this must
-            # match the SMTP user or the message is rejected outright.
+            # MUST equal the SMTP user in the sealed secret. Gmail rewrites the envelope sender to
+            # the authenticated mailbox unless the alias is verified, so a mismatch is rejected
+            # outright. This is the dedicated service mailbox — no personal address belongs here.
             - name: GF_SMTP_FROM_ADDRESS
-              value: a.r.kakde@gmail.com
+              value: synapse.kakde.eu@gmail.com
             # OPTIONAL, and deliberately so: a hard secretKeyRef for a secret that does not
             # exist yet wedges the pod in CreateContainerConfigError, which would take
             # grafana.kakde.eu down to ship an alert about something that is not down. Until
@@ -123,7 +124,7 @@ spec:
             # and restart to complete the path:
             #   scripts/secrets/rotate-generic-secret.sh monitoring grafana-smtp \
             #     deploy/apps/monitoring/overlays/prod/grafana-smtp-sealedsecret.yaml \
-            #     user=<gmail-address> password=<16-char-app-password>
+            #     user=synapse.kakde.eu@gmail.com password=<16-char-app-password>
             - name: GF_SMTP_USER
               valueFrom:
                 secretKeyRef:

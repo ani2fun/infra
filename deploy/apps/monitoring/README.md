@@ -126,12 +126,17 @@ To enable mail delivery (until then alerts only change colour in the UI):
 ```bash
 scripts/secrets/rotate-generic-secret.sh monitoring grafana-smtp \
   deploy/apps/monitoring/overlays/prod/grafana-smtp-sealedsecret.yaml \
-  user=<gmail-address> password=<16-char-app-password>
+  user=synapse.kakde.eu@gmail.com password=<16-char-app-password>
 ```
 
 then add it to `overlays/prod/kustomization.yaml` and restart Grafana. Gmail
 rejects an account password over SMTP — mint an **app password** with 2FA on.
 `GF_SMTP_FROM_ADDRESS` must equal the SMTP user or Gmail rejects the message.
+
+Sender and recipient are both **`synapse.kakde.eu@gmail.com`**, a dedicated
+service mailbox. No personal address appears in this stack, by directive: alerting
+must not be pinned to one human's inbox. Forward from Gmail, or extend `addresses`
+in the contact point to a semicolon-separated list.
 
 ## Operator setup (one-time)
 

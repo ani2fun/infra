@@ -23,7 +23,11 @@ data:
           - uid: email-admin
             type: email
             settings:
-              addresses: a.r.kakde@gmail.com
+              # The dedicated service mailbox, which is also the SMTP sender — Gmail delivers
+              # to self without complaint. Deliberately NOT a personal address: nothing in this
+              # stack should pin alerting to one human's inbox. Forward it from Gmail, or add
+              # recipients here as a semicolon-separated list.
+              addresses: synapse.kakde.eu@gmail.com
               singleEmail: true
 
   policies.yaml: |
