@@ -7,7 +7,7 @@ resources:
 images:
 - name: ghcr.io/ani2fun/codefolio
   newName: ghcr.io/ani2fun/codefolio
-  newTag: bc9b7cac63ee3b72422f432741dbf3dac04e93b8
+  newTag: e538bc23a7d2730ef8c1ca3232ce3b1e9ccbbc6d
 patches:
 - target:
     kind: Deployment
