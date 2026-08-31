@@ -46,6 +46,24 @@ spec:
             - --link=current
             - --depth=1
             - --one-time
+            # BOUNDED, unlike the sidecar's -1: this gates pod startup, so a permanent error must
+            # eventually surface as a failed pod rather than an endless Init. git-sync defaults
+            # this to 0, which aborts on the FIRST failed fetch — one throttled request from
+            # GitHub and the pod never boots at all. Five attempts rides out a blip; it will not
+            # ride out a deleted repo.
+            - --max-failures=5
+          env:
+            # The same credentials the sidecar below uses, and for the same reason: anonymous git
+            # traffic from this egress IP gets 401s from GitHub even though the repo is public.
+            # An unauthenticated clone here fails the whole pod, so it is the LAST place that
+            # should be relying on anonymous access.
+            - name: GITSYNC_USERNAME
+              value: ani2fun
+            - name: GITSYNC_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: synapse-github
+                  key: token
           volumeMounts:
             - name: content
               mountPath: /content
@@ -302,6 +320,26 @@ spec:
             - --link=current
             - --depth=1
             - --period=60s
+            # NEVER exit on a failed fetch. Pod readiness is the AND of every container, and
+            # Traefik DELETES a router whose service has no endpoints rather than failing the
+            # backend — so a git-sync that dies takes synapse.kakde.eu to a hard 404, not a
+            # degraded page. git-sync defaults this to 0, meaning abort on the FIRST failure;
+            # -1 retries forever. A transient GitHub 401 must cost stale content, never
+            # availability.
+            - --max-failures=-1
+          env:
+            # Anonymous git traffic from this egress IP is throttled by GitHub with a 401 on
+            # POST git-upload-pack, even though the repo is public — the ref listing succeeds and
+            # the fetch itself is refused. Authenticating lifts the limit. The username is a
+            # placeholder: GitHub authenticates on the PAT alone, but git-sync refuses to start
+            # with a password and no username.
+            - name: GITSYNC_USERNAME
+              value: ani2fun
+            - name: GITSYNC_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: synapse-github
+                  key: token
           volumeMounts:
             - name: content
               mountPath: /content
