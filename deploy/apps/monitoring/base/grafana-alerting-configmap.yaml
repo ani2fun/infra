@@ -120,3 +120,72 @@ data:
                 production. Check `kubectl -n apps-prod logs -l app.kubernetes.io/name=synapse
                 -c git-sync` for "error syncing repo, will retry"; a persistent GitHub 401 there
                 usually means the PAT in the synapse-github secret has expired.
+
+      - orgId: 1
+        name: argocd
+        folder: ArgoCD
+        interval: 1m
+        rules:
+          - uid: argocd-component-unhealthy
+            title: Argo CD component not ready
+            # WHY THIS EXISTS: a repo-server pod sat stuck in phase Unknown for days with no
+            # signal anywhere except Argo's own ComparisonError, discovered by chance. Argo CD
+            # has no self-alerting, so its own control plane needs the same kind of outside
+            # watchdog as any other workload.
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange:
+                  from: 300
+                  to: 0
+                datasourceUid: victoriametrics
+                model:
+                  refId: A
+                  editorMode: code
+                  instant: true
+                  range: false
+                  # kube-state-metrics emits kube_pod_status_ready with condition true/false/unknown
+                  # per pod (all three, one of them 1). A pod's Ready condition going to literal
+                  # "Unknown" is exactly the kubelet-zombie failure mode this rule exists to catch.
+                  expr: sum(kube_pod_status_ready{namespace="argocd", condition!="true"})
+              - refId: C
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: A
+                  datasource:
+                    type: __expr__
+                    uid: __expr__
+                  conditions:
+                    - type: query
+                      evaluator:
+                        type: gt
+                        params:
+                          - 0
+                      operator:
+                        type: and
+                      reducer:
+                        type: last
+                        params: []
+                      query:
+                        params:
+                          - C
+            # Long enough to skip a normal rollout restart, short enough to beat "discovered
+            # days later by accident."
+            for: 10m
+            # NoData means kube-state-metrics itself is gone — worth knowing, not noise.
+            noDataState: Alerting
+            execErrState: Alerting
+            labels:
+              severity: warning
+              app: argocd
+            annotations:
+              summary: an Argo CD component has not been Ready for 10 minutes
+              description: >-
+                One or more pods in the argocd namespace have not reported Ready for 10+
+                minutes. Check `kubectl -n argocd get pods -o wide` for phase and restart
+                counts. A pod stuck in phase Unknown is a kubelet-level zombie, not an app
+                bug — force-delete it (`kubectl delete pod <name> -n argocd --force
+                --grace-period=0`); the owning Deployment/StatefulSet recreates it clean.
+                A CrashLoopBackOff or Pending pod needs `kubectl describe pod` to see why.
