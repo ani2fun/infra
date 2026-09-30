@@ -13,4 +13,4 @@ images:
   newTag: f61c85306808e32d103825f273c1e14ee4ef489b
 - name: ghcr.io/ani2fun/synapse-d2-render
   newName: ghcr.io/ani2fun/synapse-d2-render
-  newTag: 6c57a62851687152a19b7736f5ce5c7e21b31a2d
+  newTag: f61c85306808e32d103825f273c1e14ee4ef489b
