@@ -1,0 +1,37 @@
+# THE ROOT — every Argo CD Application in this folder is created and kept in sync from git, this
+# one included. Adding an app is: drop its Application YAML here and push. Nothing is applied by
+# hand any more; `configure-argocd.sh` applies this folder once on a fresh cluster, and from then
+# on this Application owns it.
+#
+# Non-recursive on purpose: `inactive/` holds parked Applications, and parking one must keep it out
+# of the cluster. `include` keeps any README or note in this folder from being read as a manifest.
+#
+# `prune: false` on purpose. Removing a file here does NOT delete the live Application. None of
+# these Applications carries the resources finalizer, so a delete would orphan its workloads
+# rather than remove them — a quiet, confusing state for a file deletion to cause. Retiring or
+# parking an app stays a deliberate act: move or delete the file AND
+#   kubectl -n argocd delete application <name>
+# (add `--cascade=foreground` after adding the finalizer if the workloads should go too).
+#
+# `selfHeal: true`: an Application edited by hand in the cluster is put back to what git says.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: applications
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/ani2fun/infra.git
+    targetRevision: main
+    path: deploy/platform/argocd/applications
+    directory:
+      recurse: false
+      include: "*.yaml"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true

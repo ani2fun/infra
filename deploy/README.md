@@ -7,9 +7,9 @@ live sync and for an operator-driven rebuild from cold metal.
 
 | Folder | What lives here | Touched by Argo CD? |
 |---|---|---|
-| `apps/` | Application manifests with `base/` + `overlays/{dev,prod}/` per app. Argo CD `Application` objects point at `apps/<name>/overlays/prod/` for the GitOps-tracked apps (codefolio, monitoring, bytebase, synapse, synapse-go-judge). Also holds `keycloak/`, `bytebase/` and `dblab/`, which are deployed manually with `kubectl apply -k`, plus the `dummy-app-template` reference. | **Yes** for the GitOps apps; **no** for keycloak/dblab |
+| `apps/` | Application manifests with `base/` + `overlays/{dev,prod}/` per app. Argo CD `Application` objects point at `apps/<name>/overlays/prod/` for the GitOps-tracked apps (codefolio, monitoring, bytebase, synapse, synapse-go-judge, synapse-tts). Also holds `keycloak/`, `bytebase/` and `dblab/`, which are deployed manually with `kubectl apply -k`, plus the `dummy-app-template` reference. | **Yes** for the GitOps apps; **no** for keycloak/dblab |
 | `bootstrap/` | Cold-metal bootstrap scripts and configs for host OS prep, K3s install, and WireGuard mesh setup. Run from the operator's laptop on a fresh node. | No |
-| `platform/` | Manifests and install scripts for cluster platform services (traefik, cert-manager, sealed-secrets, argocd, postgresql). Used during rebuild; the `applications/` subfolder under `platform/argocd/` defines the Argo CD `Application` resources themselves. | **No** -- these are reference / one-shot bootstrap material. Do NOT add them to a kustomize root or another Argo Application. |
+| `platform/` | Manifests and install scripts for cluster platform services (traefik, cert-manager, sealed-secrets, argocd, postgresql). Used during rebuild; the `applications/` subfolder under `platform/argocd/` defines the Argo CD `Application` resources themselves. | **Only `platform/argocd/applications/`** -- the `applications` root Application (`root.yaml`) syncs that folder, so an `Application` lands by pushing its YAML. Everything else here is reference / one-shot bootstrap material: do NOT add it to a kustomize root or another Argo Application. |
 | `dr/` | Disaster-recovery pack: `RUNBOOK.md` (rebuild), `UPGRADE.md` (planned K3s/Ubuntu upgrade), `SNAPSHOT.md`, `gates.md`, `secret-recovery.md`, `node-console-recovery.md`, sealed-secrets backup procedure, keycloak realm export procedure. | No |
 | `inventory/` | Reference data: `network.yaml`, `nodes.yaml`, `namespaces.yaml`, `workloads.yaml`. | No |
 | `live-capture/` | `collect-live-state.sh` audit tool: SSHes to all 4 nodes and dumps cluster + host state to `output/` (gitignored). Used for drift detection and post-rebuild verification. Secret values are NOT exported -- see the README in that folder for details. | No |
@@ -24,6 +24,10 @@ live sync and for an operator-driven rebuild from cold metal.
    `deploy/platform/argocd/applications/<app>.yaml` with
    `path: deploy/apps/<app>/overlays/prod`) auto-syncs the change.
 
+The `Application` objects are themselves GitOps-managed: the `applications` root
+(`platform/argocd/applications/root.yaml`) syncs that folder, so creating one is a push, never a
+`kubectl apply`.
+
 ## Where to start
 
 - Operator rebuild: [`dr/RUNBOOK.md`](dr/RUNBOOK.md).
@@ -31,7 +35,9 @@ live sync and for an operator-driven rebuild from cold metal.
 - What versions/images are running: [`dr/SNAPSHOT.md`](dr/SNAPSHOT.md).
 - Adding a new GitOps-managed app: copy [`apps/dummy-app-template/`](apps/dummy-app-template/),
   then drop a matching `Application` YAML into
-  [`platform/argocd/applications/`](platform/argocd/applications/).
+  [`platform/argocd/applications/`](platform/argocd/applications/) and push — the `applications`
+  root creates it. Retiring one is deliberate: the root does not prune, so also
+  `kubectl -n argocd delete application <name>` (see `root.yaml`).
 - Cold-metal rebuild starts at [`bootstrap/`](bootstrap/) -- host-prep,
   WireGuard mesh, K3s + Calico install. The runbook walks through it
   layer by layer.
