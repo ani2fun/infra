@@ -194,6 +194,19 @@ spec:
             # falls back to the reader's own engine, which costs ~5.9 MB gz but never breaks.
             - name: SYNAPSE_D2_RENDER_URL
               value: http://127.0.0.1:8390
+            # Lessons read aloud, for readers on the listen allowlist (granted from /admin). The
+            # engine is its OWN Deployment (deploy/apps/synapse-tts), never a container in this pod:
+            # a container that dies here 404s the whole site, and the engine is a 2.5 GiB Python
+            # process. Unset is the kill switch — /api/listen is then not mounted and no lesson
+            # offers a Listen control.
+            - name: SYNAPSE_TTS_URL
+              value: http://synapse-tts:8880
+            # Synthesised audio, keyed by what was said. A pure function of its input, so an
+            # emptyDir is correct; the app sweeps it back under the ceiling every ten minutes.
+            - name: SYNAPSE_TTS_CACHE
+              value: /tts-cache
+            - name: SYNAPSE_TTS_CACHE_MIB
+              value: "1024"
             # TUTOR_ENABLED stays unset: the coach is local-only (ADR-S025) — the
             # chat route never mounts and the client shows "coming soon".
           volumeMounts:
@@ -203,6 +216,8 @@ spec:
             # WRITEABLE, unlike the git-sync volume: the fetcher unpacks here itself.
             - name: content-cache
               mountPath: /content-cache
+            - name: tts-cache
+              mountPath: /tts-cache
           # The Rust binary boots in well under a second, but it FAIL-FASTS without Postgres (the
           # pool connect and sqlx migrate both propagate), so the budget is sized for a database
           # that is briefly unreachable during a rollout, not for the process itself. 60s.
@@ -327,6 +342,11 @@ spec:
         # to survive a restart — it is a cache in the strict sense.
         - name: d2-cache
           emptyDir: {}
+        # Listen audio. The limit sits above the app's own 1024 MiB ceiling, so the sweep — not an
+        # eviction of the whole pod — is what keeps it in bounds.
+        - name: tts-cache
+          emptyDir:
+            sizeLimit: 1536Mi
       securityContext:
         # fsGroup makes the shared `content` volume group-owned (65532) + setgid, so this non-root
         # app container reads what git-sync (uid 65533) writes from the content-sync pod. That pod

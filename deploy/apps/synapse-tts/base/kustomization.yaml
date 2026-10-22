@@ -1,0 +1,11 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# The speech engine synapse reads lessons aloud with. No `labels: includeSelectors: true` — the
+# NetworkPolicy inlines the synapse consumer podSelector, which selector-injection would rewrite.
+# The `go-judge-low` PriorityClass it uses is defined by synapse-go-judge, not here.
+
+resources:
+  - deployment.yaml
+  - service.yaml
+  - networkpolicy.yaml

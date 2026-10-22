@@ -1,0 +1,28 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  # Only the synapse app may reach the engine, and the engine reaches nothing: the model and every
+  # voice are baked into the image, and it initiates no outbound call. Reply traffic rides
+  # connection tracking. The same shape as synapse-go-judge-isolation.
+  name: synapse-tts-isolation
+  labels:
+    app.kubernetes.io/name: synapse-tts
+    app.kubernetes.io/component: speech
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: synapse-tts
+      app.kubernetes.io/component: speech
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: synapse
+              app.kubernetes.io/component: app
+      ports:
+        - protocol: TCP
+          port: 8880
+  egress: []

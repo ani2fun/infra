@@ -1,0 +1,104 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: synapse-tts
+  labels:
+    app.kubernetes.io/name: synapse-tts
+    app.kubernetes.io/component: speech
+spec:
+  # One replica: synapse serialises synthesis to a single request at a time (its `synth_gate`),
+  # so a second replica would sit idle. Recreate, because two copies during a rollout would each
+  # hold ~2.5 GiB on wk-1 for no benefit.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: synapse-tts
+      app.kubernetes.io/component: speech
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: synapse-tts
+        app.kubernetes.io/component: speech
+    spec:
+      # NOT in the synapse pod, and that is load-bearing: any container that dies in that pod marks
+      # it NotReady and the whole site 404s. The speech engine is a 2.5 GiB Python process; if it
+      # dies, listening fails with a 502 and nothing else notices.
+      #
+      # wk-1 for the RAM (31 GiB, ~3 GiB used when measured), and the go-judge-low priority so it is
+      # evicted first and never preempts the database — the same posture as synapse-go-judge.
+      nodeSelector:
+        kubernetes.io/hostname: wk-1
+      priorityClassName: go-judge-low
+      enableServiceLinks: false
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 15
+      containers:
+        - name: kokoro
+          # Kokoro-FastAPI v0.9.0, CPU build, amd64 manifest — pinned BY DIGEST because it is a
+          # third-party image. Measured on wk-1 (2026-10-22): 1.53 GB compressed, warm ~17 s after
+          # start, 1.8–2.1x realtime on 2 CPUs, memory settling at 2.4–2.7 GiB and 2.96 GiB peak on
+          # a single 3,000-word request (synapse never sends one: its units are <= 400 chars).
+          image: ghcr.io/remsky/kokoro-fastapi-cpu@sha256:7f9a256919eff7a84e9a77b757de0f3fe95c48fcf4fbe1e008deacbc7d9f2985
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8880
+          env:
+            # The model is baked into the image; with egress denied a download could only hang.
+            - name: DOWNLOAD_MODEL
+              value: "false"
+            # Torch sizes its pool from the HOST's 18 threads unless told; the CPU limit below
+            # would then throttle an oversubscribed pool. 2, matching the limit: 8 threads bought
+            # only 2.14x against 1.83x on 2 in the benchmark.
+            - name: OMP_NUM_THREADS
+              value: "2"
+            - name: MKL_NUM_THREADS
+              value: "2"
+            # Only /v1/audio/speech and /health are wanted. The bundled web player is a public UI
+            # nobody should reach through this Service.
+            - name: ENABLE_WEB_PLAYER
+              value: "false"
+            - name: API_LOG_LEVEL
+              value: INFO
+          # The model loads and warms before the port answers; measured ~17 s, so 2 minutes of
+          # budget covers a cold node.
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8880
+            periodSeconds: 5
+            failureThreshold: 24
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8880
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          # tcp, not /health: a synthesis can hold the event loop for seconds, and a liveness probe
+          # that times out on a busy engine would restart it mid-sentence.
+          livenessProbe:
+            tcpSocket:
+              port: 8880
+            periodSeconds: 30
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: "1"
+              memory: 2560Mi
+            limits:
+              cpu: "2"
+              memory: 3584Mi
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
