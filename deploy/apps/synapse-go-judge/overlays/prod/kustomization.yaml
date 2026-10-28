@@ -6,4 +6,4 @@ resources:
 images:
 - name: ghcr.io/ani2fun/synapse-go-judge
   newName: ghcr.io/ani2fun/synapse-go-judge
-  newTag: 256e5dae1057630a5fafebb66bb9d7fbbb3aa498
+  newTag: 0097daa8c83cf5f2ca0c7ff744c8b51883702b86
