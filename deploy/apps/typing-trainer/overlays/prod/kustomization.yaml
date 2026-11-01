@@ -4,6 +4,7 @@ namespace: apps-prod
 resources:
 - ../../base
 - ingress.yaml
+- ghcr-pull-sealedsecret.yaml
 images:
 - name: ghcr.io/ani2fun/glove80-typing-trainer
   newName: ghcr.io/ani2fun/glove80-typing-trainer

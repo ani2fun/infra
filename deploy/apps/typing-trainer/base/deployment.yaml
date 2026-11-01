@@ -16,6 +16,9 @@ spec:
     spec:
       terminationGracePeriodSeconds: 10
       automountServiceAccountToken: false
+      # the image is private on GHCR; the overlay ships this as a SealedSecret
+      imagePullSecrets:
+        - name: ghcr-pull
       containers:
         - name: typing-trainer
           image: ghcr.io/ani2fun/glove80-typing-trainer:latest

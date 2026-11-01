@@ -333,6 +333,7 @@ For future changes, use this pattern:
 For the common workflows, use the scripts under `scripts/secrets/`:
 
 - `scripts/secrets/fetch-sealed-secrets-cert.sh` fetches the active Sealed Secrets public certificate
+- `scripts/secrets/seal-ghcr-pull-secret.sh <namespace> <output-yaml> [secret-name]` seals a GHCR pull secret for a private image (prompts for a read:packages token)
 - `scripts/secrets/rotate-generic-secret.sh <namespace> <secret-name> <output-yaml> <key=value>...` reseals a generic secret
 - `scripts/secrets/rotate-keycloak-github-oauth.sh <client-id> <client-secret>` updates the production Keycloak GitHub OAuth sealed secret
 - `scripts/secrets/read-secret-value.sh <namespace> <secret-name> <key>` decodes a live runtime secret value
