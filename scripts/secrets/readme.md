@@ -16,6 +16,9 @@ scripts/secrets/rotate-generic-secret.sh <namespace> <secret-name> <output-yaml>
 # per-app wrappers (they know the right names, keys and paths)
 scripts/secrets/seal-bytebase-secrets.sh [meta-password] [managed-password]
 scripts/secrets/seal-synapse-secrets.sh <synapse-admin-client-secret> [db-password]
+scripts/secrets/seal-typing-trainer-secrets.sh                # also creates the typing DB role
+scripts/secrets/seal-ghcr-pull-secret.sh <namespace> <output-yaml> [secret-name]
+scripts/secrets/sync-typing-keycloak.sh [<github-oauth-client-id>]
 scripts/secrets/rotate-keycloak-github-oauth.sh <client-id> <client-secret>
 ```
 

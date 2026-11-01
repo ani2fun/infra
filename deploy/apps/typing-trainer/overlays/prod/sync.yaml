@@ -1,0 +1,36 @@
+# Sign-in (Keycloak realm `typing`, brokering GitHub) and progress sync (database
+# `typing` on the shared Postgres). Secrets come from sealedsecret.yaml, made by
+# scripts/secrets/seal-typing-trainer-secrets.sh. See deploy/apps/typing-trainer/README.md.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: typing-trainer
+spec:
+  template:
+    spec:
+      containers:
+        - name: typing-trainer
+          env:
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: typing-trainer
+                  key: postgres-password
+            # DB_PASSWORD must come first: $(VAR) only expands names defined above it
+            - name: DATABASE_URL
+              value: postgres://typing:$(DB_PASSWORD)@postgresql.databases-prod.svc.cluster.local:5432/typing
+            - name: SESSION_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: typing-trainer
+                  key: session-secret
+            - name: OIDC_ISSUER
+              value: https://keycloak.kakde.eu/realms/typing
+            - name: OIDC_CLIENT_ID
+              value: typing-web
+            - name: PUBLIC_URL
+              value: https://typing.kakde.eu
+            # GitHub logins allowed to sign in and sync (comma-separated); others
+            # still use the trainer, with progress kept in their browser only
+            - name: ALLOWED_USERS
+              value: ani2fun

@@ -5,15 +5,10 @@ resources:
 - ../../base
 - ingress.yaml
 - ghcr-pull-sealedsecret.yaml
+- sealedsecret.yaml
 images:
 - name: ghcr.io/ani2fun/glove80-typing-trainer
   newName: ghcr.io/ani2fun/glove80-typing-trainer
   newTag: 7d575488764777d0d1d54336b029c9155e8ab300
 patches:
-- target:
-    kind: Deployment
-    name: typing-trainer
-  patch: "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: typing-trainer\n\
-    spec:\n  template:\n    spec:\n      nodeSelector:\n        kakde.eu/edge: \"\
-    true\"\n      tolerations:\n        - key: kakde.eu/edge\n          operator:\
-    \ Equal\n          value: \"true\"\n          effect: NoSchedule"
+- path: sync.yaml

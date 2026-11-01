@@ -76,7 +76,13 @@ workloads:
     image: ghcr.io/ani2fun/glove80-typing-trainer:latest
     # image_digest captured at next snapshot run (scripts/dr/snapshot-live-state.sh)
     replicas: 1
-    persistence: none   # static page; progress lives in each visitor's browser
+    persistence: none   # signed-in progress lives in Postgres (database `typing`), the rest in each browser
+    secrets:
+      - typing-trainer   # postgres-password, session-secret (overlays/prod/sealedsecret.yaml)
+      - ghcr-pull        # private image pull (overlays/prod/ghcr-pull-sealedsecret.yaml)
+    backing_stores:
+      - postgres: postgresql.databases-prod.svc.cluster.local:5432/typing (shared; optional, the trainer runs without it)
+    auth: optional sign-in via Keycloak realm `typing` (GitHub IdP); sync limited to ani2fun by ALLOWED_USERS
     service:
       name: typing-trainer
       port: 80

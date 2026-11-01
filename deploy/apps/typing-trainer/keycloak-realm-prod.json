@@ -1,0 +1,28 @@
+{
+  "realm": "typing",
+  "displayName": "Tangent",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "accessTokenLifespan": 300,
+  "clients": [
+    {
+      "clientId": "typing-web",
+      "name": "Tangent",
+      "description": "Public PKCE client. The Tangent server runs the code flow itself and keeps only an HttpOnly session cookie; no token reaches page JavaScript. Created by scripts/secrets/sync-typing-keycloak.sh.",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": ["https://typing.kakde.eu/auth/callback"],
+      "webOrigins": ["https://typing.kakde.eu"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "https://typing.kakde.eu/*"
+      }
+    }
+  ]
+}

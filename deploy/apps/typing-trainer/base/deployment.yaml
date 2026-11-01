@@ -16,6 +16,8 @@ spec:
     spec:
       terminationGracePeriodSeconds: 10
       automountServiceAccountToken: false
+      # keep the namespace's service links out of the env (PORT and friends)
+      enableServiceLinks: false
       # the image is private on GHCR; the overlay ships this as a SealedSecret
       imagePullSecrets:
         - name: ghcr-pull
@@ -26,8 +28,10 @@ spec:
           ports:
             - name: http
               containerPort: 8080
-          # Tangent (Glove80 typing trainer): one static page served by unprivileged nginx.
-          # All progress lives in the visitor's browser, so there is no state, no secrets, no DB.
+          # Tangent (Glove80 typing trainer): one page served by a small Node server.
+          # With no env this is static mode (progress only in the visitor's browser); the
+          # prod overlay adds Keycloak sign-in and Postgres sync. /healthz never touches
+          # the database, so the trainer stays up when Postgres or Keycloak is down.
           readinessProbe:
             httpGet:
               path: /healthz
@@ -45,21 +49,21 @@ spec:
             failureThreshold: 3
           resources:
             requests:
-              cpu: 10m
-              memory: 32Mi
+              cpu: 20m
+              memory: 64Mi
             limits:
-              cpu: 200m
-              memory: 128Mi
+              cpu: 300m
+              memory: 192Mi
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
             runAsNonRoot: true
-            runAsUser: 101
+            runAsUser: 1000 # the image's node user
             capabilities:
               drop:
                 - ALL
           volumeMounts:
-            # nginx-unprivileged keeps its pid and temp files in /tmp
+            # the root filesystem is read-only; give Node a scratch /tmp anyway
             - name: tmp
               mountPath: /tmp
       volumes:
