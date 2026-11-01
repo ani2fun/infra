@@ -1,0 +1,26 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: typing-trainer
+  annotations:
+    kubernetes.io/ingress.class: traefik
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    cert-manager.io/cluster-issuer: letsencrypt-staging-dns01
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - dev.typing.kakde.eu
+      secretName: dev-typing-kakde-eu-tls
+  rules:
+    - host: dev.typing.kakde.eu
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: typing-trainer
+                port:
+                  number: 80

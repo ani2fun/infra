@@ -1,0 +1,18 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: apps-prod
+resources:
+- ../../base
+- ingress.yaml
+images:
+- name: ghcr.io/ani2fun/glove80-typing-trainer
+  newName: ghcr.io/ani2fun/glove80-typing-trainer
+  newTag: latest
+patches:
+- target:
+    kind: Deployment
+    name: typing-trainer
+  patch: "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: typing-trainer\nspec:\n\
+    \  template:\n    spec:\n      nodeSelector:\n        kakde.eu/edge: \"true\"\n\
+    \      tolerations:\n        - key: kakde.eu/edge\n          operator: Equal\n\
+    \          value: \"true\"\n          effect: NoSchedule"

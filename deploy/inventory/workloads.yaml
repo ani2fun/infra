@@ -68,6 +68,24 @@ workloads:
       tls_secret: dev-codefolio-kakde-eu-tls
       cluster_issuer: letsencrypt-staging-dns01
 
+  - name: typing-trainer
+    namespace: apps-prod
+    kind: Deployment
+    managed_by: argocd
+    source_path: deploy/apps/typing-trainer/overlays/prod
+    image: ghcr.io/ani2fun/glove80-typing-trainer:latest
+    # image_digest captured at next snapshot run (scripts/dr/snapshot-live-state.sh)
+    replicas: 1
+    persistence: none   # static page; progress lives in each visitor's browser
+    service:
+      name: typing-trainer
+      port: 80
+      target_port: 8080
+    ingress:
+      host: typing.kakde.eu
+      tls_secret: typing-kakde-eu-tls
+      cluster_issuer: letsencrypt-prod-dns01
+
   # NOTE: piston and dsa-tracker (backend + frontend) were retired and removed
   # (2026-06-15). go-judge replaced piston as the in-cluster code runner and was
   # itself retired (2026-08-20) once codefolio went static; synapse-go-judge is
