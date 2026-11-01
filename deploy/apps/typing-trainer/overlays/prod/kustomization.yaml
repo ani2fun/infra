@@ -8,7 +8,7 @@ resources:
 images:
 - name: ghcr.io/ani2fun/glove80-typing-trainer
   newName: ghcr.io/ani2fun/glove80-typing-trainer
-  newTag: 47b91e7c7cae785fa05a0e8d9b7e53f66cc0ee3e
+  newTag: 7d575488764777d0d1d54336b029c9155e8ab300
 patches:
 - target:
     kind: Deployment
