@@ -7,12 +7,12 @@ resources:
 images:
 - name: ghcr.io/ani2fun/glove80-typing-trainer
   newName: ghcr.io/ani2fun/glove80-typing-trainer
-  newTag: latest
+  newTag: 47b91e7c7cae785fa05a0e8d9b7e53f66cc0ee3e
 patches:
 - target:
     kind: Deployment
     name: typing-trainer
-  patch: "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: typing-trainer\nspec:\n\
-    \  template:\n    spec:\n      nodeSelector:\n        kakde.eu/edge: \"true\"\n\
-    \      tolerations:\n        - key: kakde.eu/edge\n          operator: Equal\n\
-    \          value: \"true\"\n          effect: NoSchedule"
+  patch: "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: typing-trainer\n\
+    spec:\n  template:\n    spec:\n      nodeSelector:\n        kakde.eu/edge: \"\
+    true\"\n      tolerations:\n        - key: kakde.eu/edge\n          operator:\
+    \ Equal\n          value: \"true\"\n          effect: NoSchedule"
