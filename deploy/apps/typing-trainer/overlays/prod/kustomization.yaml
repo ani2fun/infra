@@ -9,6 +9,6 @@ resources:
 images:
 - name: ghcr.io/ani2fun/glove80-typing-trainer
   newName: ghcr.io/ani2fun/glove80-typing-trainer
-  newTag: c282d0057f9331d0c7cdff2edf6d5976c562e750
+  newTag: ebfe457001271c3bf379ddc9bec75377a80eae7f
 patches:
 - path: sync.yaml
