@@ -3,7 +3,15 @@ kind: Deployment
 metadata:
   name: codefolio
 spec:
-  replicas: 1
+  # Two replicas plus maxUnavailable 0: a deploy starts a new pod and waits for it to be Ready
+  # before it stops an old one, and losing one pod (crash, eviction, node drain) still leaves
+  # one serving. The PodDisruptionBudget in pdb.yaml keeps a drain from evicting both at once.
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
   selector:
     matchLabels:
       app.kubernetes.io/name: codefolio

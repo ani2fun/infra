@@ -3,7 +3,15 @@ kind: Deployment
 metadata:
   name: typing-trainer
 spec:
-  replicas: 1
+  # Two replicas plus maxUnavailable 0: a deploy starts a new pod and waits for it to be Ready
+  # before it stops an old one, and losing one pod (crash, eviction, node drain) still leaves
+  # one serving. The PodDisruptionBudget in pdb.yaml keeps a drain from evicting both at once.
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
   selector:
     matchLabels:
       app.kubernetes.io/name: typing-trainer
@@ -15,6 +23,16 @@ spec:
         app.kubernetes.io/component: app
     spec:
       terminationGracePeriodSeconds: 10
+      # Prefer one replica per node, so a kured drain of one worker leaves the other replica
+      # serving. Soft (ScheduleAnyway): if only one node fits, both still run.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: typing-trainer
+              app.kubernetes.io/component: app
       automountServiceAccountToken: false
       # keep the namespace's service links out of the env (PORT and friends)
       enableServiceLinks: false

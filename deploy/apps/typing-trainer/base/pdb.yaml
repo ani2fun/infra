@@ -1,0 +1,13 @@
+# At most one typing-trainer pod may be evicted at a time (node drain by kured or by hand). With
+# replicas: 2 this keeps one pod serving through any voluntary disruption. Do not use
+# minAvailable with a single replica: that blocks every drain of the node.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: typing-trainer
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: typing-trainer
+      app.kubernetes.io/component: app
