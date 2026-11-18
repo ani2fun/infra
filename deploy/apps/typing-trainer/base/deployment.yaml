@@ -22,7 +22,8 @@ spec:
         app.kubernetes.io/name: typing-trainer
         app.kubernetes.io/component: app
     spec:
-      terminationGracePeriodSeconds: 10
+      # 15 s: the 5 s preStop pause below plus time for the server to close connections.
+      terminationGracePeriodSeconds: 15
       # Prefer one replica per node, so a kured drain of one worker leaves the other replica
       # serving. Soft (ScheduleAnyway): if only one node fits, both still run.
       topologySpreadConstraints:
@@ -50,6 +51,12 @@ spec:
           # With no env this is static mode (progress only in the visitor's browser); the
           # prod overlay adds Keycloak sign-in and Postgres sync. /healthz never touches
           # the database, so the trainer stays up when Postgres or Keycloak is down.
+          # Keep serving for 5 s after the pod is marked terminating. Traefik needs a moment to
+          # drop the pod from its endpoints; without the pause a rollout returns a few 502s.
+          lifecycle:
+            preStop:
+              sleep:
+                seconds: 5
           readinessProbe:
             httpGet:
               path: /healthz
