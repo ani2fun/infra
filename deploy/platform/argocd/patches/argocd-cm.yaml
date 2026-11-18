@@ -1,0 +1,47 @@
+# Adds the Traefik Ingress health check to the upstream argocd-cm (strategic merge on .data).
+# Captured from the live cluster on 2026-11-18, where it had been added with `kubectl edit` and
+# existed nowhere in git.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-cm
+data:
+  resource.customizations.health.networking.k8s.io_Ingress: |
+    hs = {}
+
+    local lb = nil
+    if obj.status ~= nil and obj.status.loadBalancer ~= nil and obj.status.loadBalancer.ingress ~= nil then
+      lb = obj.status.loadBalancer.ingress
+    end
+
+    if lb ~= nil and #lb > 0 then
+      for _, entry in ipairs(lb) do
+        if (entry.ip ~= nil and entry.ip ~= "") or (entry.hostname ~= nil and entry.hostname ~= "") then
+          hs.status = "Healthy"
+          hs.message = "Ingress has a published endpoint"
+          return hs
+        end
+      end
+    end
+
+    local isTraefik = false
+
+    if obj.spec ~= nil and obj.spec.ingressClassName == "traefik" then
+      isTraefik = true
+    end
+
+    if obj.metadata ~= nil and obj.metadata.annotations ~= nil then
+      if obj.metadata.annotations["kubernetes.io/ingress.class"] == "traefik" then
+        isTraefik = true
+      end
+    end
+
+    if isTraefik and obj.spec ~= nil and obj.spec.rules ~= nil and #obj.spec.rules > 0 then
+      hs.status = "Healthy"
+      hs.message = "Traefik ingress with routes; no published load balancer status"
+      return hs
+    end
+
+    hs.status = "Progressing"
+    hs.message = "Waiting for load balancer status"
+    return hs

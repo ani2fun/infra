@@ -1,0 +1,82 @@
+# Argo CD install, pinned. This is the whole live Argo CD: the upstream manifest at one exact
+# tag, plus this cluster's patches. Apply it from ms-1 with:
+#
+#   kubectl apply --server-side --force-conflicts -k deploy/platform/argocd
+#
+# Server-side apply is required: the Argo CD CRDs are larger than the 256 KiB annotation that
+# client-side apply writes. --force-conflicts takes ownership of fields that older imperative
+# `kubectl patch` / `kubectl edit` calls left behind.
+#
+# Upgrading = bump the tag below, read the upstream upgrade notes for every minor version in
+# between (docs/operator-manual/upgrading/<from>-<to>.md), run `kubectl diff --server-side -k`,
+# then apply. Never point this at `stable`: a rebuild would silently get a different version.
+#
+# Why pinned and why at least v3.6: v3.3.3's repo-server init container ran `ln -s` (not
+# `ln -sf`). After a raw node reboot the pod and its emptyDir survive, the symlink already
+# exists, `ln` exits 1, and repo-server crash-loops until someone restarts it. Every
+# Application then sits at `Sync: Unknown`. This happened after every wk-2 kernel-update reboot
+# from Sep to Nov 2026. Upstream fixed the script; kured (deploy/platform/kured) also drains the
+# node before a reboot now, so pods come back fresh either way.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: argocd
+
+resources:
+  - https://raw.githubusercontent.com/argoproj/argo-cd/v3.6.1/manifests/install.yaml
+
+patches:
+  # Every Argo CD workload runs on the node labelled workload=argocd (wk-2 today; the label is
+  # set by configure-argocd.sh). Strategic merge keeps the upstream kubernetes.io/os selector.
+  - target:
+      kind: Deployment
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: any
+      spec:
+        template:
+          spec:
+            nodeSelector:
+              workload: argocd
+  - target:
+      kind: StatefulSet
+    patch: |-
+      apiVersion: apps/v1
+      kind: StatefulSet
+      metadata:
+        name: any
+      spec:
+        template:
+          spec:
+            nodeSelector:
+              workload: argocd
+
+  # Requests and limits. Upstream ships none (BestEffort QoS), which lets one busy component
+  # starve the rest on a small node.
+  - path: patches/resources.yaml
+
+  # Two repo-servers, so one stuck pod does not stop all manifest generation.
+  - target:
+      kind: Deployment
+      name: argocd-repo-server
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 2
+
+  # TLS ends at Traefik (argocd-ingress.yaml), so argocd-server serves plain HTTP inside the
+  # cluster.
+  - patch: |-
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: argocd-cmd-params-cm
+      data:
+        server.insecure: "true"
+
+  # Health check for Traefik Ingresses. Traefik in this cluster does not publish
+  # status.loadBalancer, so the built-in check leaves every Ingress (and so every app) stuck at
+  # Progressing. This treats a Traefik Ingress that has rules as Healthy. Merged into the
+  # upstream argocd-cm, whose other keys stay as shipped.
+  - path: patches/argocd-cm.yaml
