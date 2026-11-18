@@ -216,6 +216,26 @@ K3S_TOKEN='<<token from L3.2>>' \
 ssh root@ms-1 'bash -s' < deploy/bootstrap/k3s/apply-node-placement.sh
 ```
 
+### L3.6 Install kured (drain-then-reboot for the workers)
+
+Host prep turns off the unattended-upgrades reboot. kured does it instead: on `wk-1` and
+`wk-2` (the `homelab.kakde.eu/role=worker` nodes from L3.5) it sees
+`/var/run/reboot-required`, takes a cluster lock, drains the node, reboots it, and uncordons
+it, one node at a time, between 03:00 and 05:00 Europe/Paris. Without kured, kernel updates
+install but the workers never reboot.
+
+The kustomization pulls the pinned upstream manifest, so copy the folder to ms-1 and apply it
+there:
+
+```bash
+scp -r deploy/platform/kured root@ms-1:/tmp/kured
+ssh root@ms-1 'kubectl apply -k /tmp/kured && kubectl -n kube-system rollout status ds/kured'
+```
+
+Expect one `kured` pod on each of `wk-1` and `wk-2`, and none on `ms-1` or `vm-1`.
+
+**See:** [`../platform/kured/kustomization.yaml`](../platform/kured/kustomization.yaml)
+
 **See:** [`../bootstrap/k3s/README.md`](../bootstrap/k3s/README.md)
 
 **Gate:** [L3-A, L3-B, L3-C](gates.md#l3----k3s-and-calico)
@@ -339,10 +359,18 @@ ssh root@ms-1 'kubectl apply -f' deploy/platform/cert-manager/clusterissuer-stag
 
 ### L7.1 Install Argo CD
 
+Argo CD is a kustomization pinned to one upstream tag (v3.6.1 today) plus this cluster's
+patches. `install-argocd.sh` runs `kubectl apply -k` on the folder it sits in, so copy the
+whole folder to ms-1 first. Piping the script through `bash -s` does not work any more.
+
 ```bash
-ssh root@ms-1 'bash -s' < deploy/platform/argocd/install-argocd.sh
-ssh root@ms-1 'bash -s' < deploy/platform/argocd/configure-argocd.sh
+scp -r deploy/platform/argocd root@ms-1:/tmp/argocd
+ssh root@ms-1 'bash /tmp/argocd/install-argocd.sh && bash /tmp/argocd/configure-argocd.sh'
 ```
+
+`configure-argocd.sh` labels wk-2 `workload=argocd`, then applies the Ingress and the
+Applications, so L7.2 and L7.3 below are already done when it succeeds. They stay listed for
+a partial re-run.
 
 ### L7.2 Apply the Ingress
 

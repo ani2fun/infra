@@ -426,8 +426,8 @@ failure.
 
 Drain anyway. Its value here is not rescheduling — it is giving Postgres a graceful `SIGTERM` so
 it checkpoints cleanly, instead of being killed mid-write when the kubelet shuts down. That is the
-gap called out in [`../bootstrap/host-prep/apt/52unattended-upgrades-reboot`](../bootstrap/host-prep/apt/52unattended-upgrades-reboot):
-the unattended-upgrade path does *not* drain, and this runbook is the manual answer to it.
+same reason kured ([`../platform/kured/`](../platform/kured/kustomization.yaml)) drains the
+workers before their unattended kernel reboots. This runbook is the manual version of that.
 
 Do **not** reach for `--disable-eviction`. The only PodDisruptionBudgets in the cluster are
 `calico-apiserver` and `calico-typha` (`maxUnavailable: 1`), which one-node-at-a-time already
@@ -560,15 +560,18 @@ case where the datastore itself is damaged.
 | Extended public outage | `L10-A` failing after `U4` | Traefik is edge-only; check it is scheduled and that the guardrail (`L5-B`) did not reorder host iptables on reboot. |
 | containerd jumps with the K3s minor | Images fail to pull, odd runtime errors | Expected as part of the bump — check the K3s release notes for the containerd version and any runc/cgroup notes. |
 | A hand-edited systemd unit vanishes | A flag you relied on is gone | The installer rewrites the unit every run. Fold any local edit into the install script in Git first. |
-| **`argocd-repo-server` crash-loops after ANY k3s-agent restart** | Pod `0/1`, init container `copyutil` in `BackOff` with `/bin/ln: Already exists`; every Application goes `Sync: Unknown` with `ComparisonError … connection refused` | The pod's `emptyDir` outlives its containers, so once `copyutil` has run successfully its symlink collides on every later re-run. **Delete the pod** — a new one gets a clean volume. Argo cannot self-heal: without repo-server it renders no manifest, and its pods are pinned to `wk-2` by `workload=argocd` so they cannot move. Triggered twice on 2026-08-20 — once by the `wk-2` reboot at 04:32, then again at 09:23 when a bare `apt upgrade -y` on the live node bounced `k3s-agent` and killed the container (`exitCode 255`, `reason Unknown`). Expect it at `U3`, and check for it after any node patching. |
+| **`argocd-repo-server` crash-loops after ANY k3s-agent restart** | Pod `0/1`, init container `copyutil` in `BackOff` with `/bin/ln: Already exists`; every Application goes `Sync: Unknown` with `ComparisonError … connection refused` | The pod's `emptyDir` outlives its containers, so once `copyutil` has run successfully its symlink collides on every later re-run. **Delete the pod** — a new one gets a clean volume. Argo cannot self-heal: without repo-server it renders no manifest, and its pods are pinned to `wk-2` by `workload=argocd` so they cannot move. Triggered on 2026-08-20 (twice) and after every `wk-2` kernel reboot until 2026-11-18. **Fixed 2026-11-18**: Argo CD is pinned at v3.6.1 ([`../platform/argocd/kustomization.yaml`](../platform/argocd/kustomization.yaml)), whose init container uses `ln -sf`, and kured now drains `wk-2` before a kernel reboot. If it ever comes back, the version pin has been changed: check the init command with `kubectl -n argocd get deploy argocd-repo-server -o jsonpath='{.spec.template.spec.initContainers[0].args}'`. |
 
 ---
 
 ## Why ms-1 and vm-1 do not auto-reboot
 
-`wk-1` (03:30) and `wk-2` (04:30) install
-[`52unattended-upgrades-reboot`](../bootstrap/host-prep/apt/52unattended-upgrades-reboot) and
-reboot themselves after an unattended upgrade that needs it.
+`wk-1` and `wk-2` are rebooted by kured ([`../platform/kured/`](../platform/kured/kustomization.yaml))
+after an unattended upgrade that needs it. kured drains first, runs only in the 03:00–05:00
+window, and reboots one node at a time. Until 2026-11-18 unattended-upgrades rebooted them
+itself (wk-1 03:30, wk-2 04:30) without a drain.
+[`52unattended-upgrades-reboot`](../bootstrap/host-prep/apt/52unattended-upgrades-reboot) now
+sets `Automatic-Reboot "false"`.
 
 **`ms-1` and `vm-1` deliberately do not,** and this is the considered position rather than an
 oversight:
@@ -576,7 +579,8 @@ oversight:
 - `vm-1` is the only public entry point. An unattended reboot is an unannounced outage of every
   `*.kakde.eu` host, at 03:30, with nobody watching.
 - `ms-1` is the only API server. There is no second control-plane node to carry the cluster.
-- Neither reboot would drain first — the unattended path never does.
+- kured runs only on the worker nodes. Its drain cannot make a single control plane or a single
+  edge node safe to lose.
 
 **The cost is real and should be stated plainly:** it is exactly why both nodes accumulated months
 of pending kernel reboots before this upgrade. The countermeasure is a recurring calendar

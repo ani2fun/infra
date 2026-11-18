@@ -109,7 +109,8 @@ Custom firewall systemd units (per node):
 | Sealed Secrets controller | `0.33.1` | manifest install | `docker.io/bitnami/sealed-secrets-controller@sha256:e7fad65c2d2f47e48d9ca17408ed56961bfa6a6dd74ccd4a1a214664156534bc` |
 | cert-manager | `v1.19.1` | `cert-manager-v1.19.1` | see image table |
 | Traefik | `v2.11` | manifest install | `docker.io/library/traefik@sha256:ad45e9eb6b148c6bc8d5dbe309412758d48d6027a37591057dc9d10fbfbe8ce5` |
-| Argo CD | `v3.3.3` | helm | `quay.io/argoproj/argocd@sha256:8b9a0993937850c1ee6e2ada47a2be8259d512e959ae58afa39936658f7b52e7` |
+| Argo CD | `v3.6.1` | kustomize (`deploy/platform/argocd`), upgraded from v3.3.3 on 2026-11-18 | `quay.io/argoproj/argocd@sha256:296e3d74f449b2ce45265613fcb68c18ed7366488360c8ea32f5f2a93d2e5c54` |
+| kured | `1.23.0` | kustomize (`deploy/platform/kured`), added 2026-11-18 | `ghcr.io/kubereboot/kured@sha256:8dfd3c2e889337595731d801afc5c031b545876a29427897b3f711d2983f30c4` |
 | PostgreSQL | `17.9` | manifest StatefulSet | `docker.io/library/postgres@sha256:2cd82735a36356842d5eb1ef80db3ae8f1154172f0f653db48fde079b2a0b7f7` |
 | Keycloak | `26.5.5` | manifest Deployment | `quay.io/keycloak/keycloak@sha256:a7b0cb7a43a1235a61872883414d3f1d9a3ceac9df6e5907bd12202778a6265c` |
 | oauth2-proxy (whoami-auth) | `v7.14.3` | manifest Deployment | (live capture pending PR 8) |
