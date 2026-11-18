@@ -189,3 +189,127 @@ data:
                 bug — force-delete it (`kubectl delete pod <name> -n argocd --force
                 --grace-period=0`); the owning Deployment/StatefulSet recreates it clean.
                 A CrashLoopBackOff or Pending pod needs `kubectl describe pod` to see why.
+                A repo-server with init container `copyutil` failing on `/bin/ln: Already exists`
+                means the version pin in deploy/platform/argocd/kustomization.yaml was lowered
+                below v3.6 (fixed there on 2026-11-18).
+
+      - orgId: 1
+        name: cluster
+        folder: Cluster
+        interval: 1m
+        rules:
+          - uid: pod-crashloop
+            title: Pod stuck in CrashLoopBackOff
+            # WHY THIS EXISTS: Argo CD's repo-server crash-looped for 4 days in Nov 2026 (init
+            # container `copyutil`). The argocd rule above saw it as "not Ready", but a crash loop
+            # in ANY namespace (app, platform, monitoring) means the same thing: something will not
+            # recover on its own. Covers init containers too, which is where that one failed.
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange:
+                  from: 300
+                  to: 0
+                datasourceUid: victoriametrics
+                model:
+                  refId: A
+                  editorMode: code
+                  instant: true
+                  range: false
+                  # Both metric names in one selector: main containers and init containers.
+                  expr: count({__name__=~"kube_pod_(init_)?container_status_waiting_reason", reason="CrashLoopBackOff"} == 1)
+              - refId: C
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: A
+                  datasource:
+                    type: __expr__
+                    uid: __expr__
+                  conditions:
+                    - type: query
+                      evaluator:
+                        type: gt
+                        params:
+                          - 0
+                      operator:
+                        type: and
+                      reducer:
+                        type: last
+                        params: []
+                      query:
+                        params:
+                          - C
+            for: 30m
+            # `sum(...)` over no matching series is empty, not 0, so NoData here is the healthy
+            # case (nothing crash-looping, nothing cordoned), unlike the rules above.
+            noDataState: OK
+            execErrState: Alerting
+            labels:
+              severity: warning
+              app: cluster
+            annotations:
+              summary: a pod has been crash-looping for 30 minutes
+              description: >-
+                A container or init container has been in CrashLoopBackOff for 30+ minutes.
+                It will not fix itself. Find it with `kubectl get pods -A | grep -i crash`, then
+                read `kubectl -n <ns> describe pod <pod>` and `kubectl -n <ns> logs <pod> -c
+                <container> --previous`.
+          - uid: node-cordoned
+            title: Node left cordoned
+            # WHY THIS EXISTS: kured cordons a worker, drains it, reboots, and uncordons when it
+            # comes back. If the node does not come back cleanly, or a manual drain is forgotten,
+            # the node stays unschedulable with no other signal. A kured reboot takes minutes, so
+            # 2 hours cordoned means something went wrong.
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange:
+                  from: 300
+                  to: 0
+                datasourceUid: victoriametrics
+                model:
+                  refId: A
+                  editorMode: code
+                  instant: true
+                  range: false
+                  expr: sum(kube_node_spec_unschedulable > 0)
+              - refId: C
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: A
+                  datasource:
+                    type: __expr__
+                    uid: __expr__
+                  conditions:
+                    - type: query
+                      evaluator:
+                        type: gt
+                        params:
+                          - 0
+                      operator:
+                        type: and
+                      reducer:
+                        type: last
+                        params: []
+                      query:
+                        params:
+                          - C
+            for: 2h
+            # `sum(...)` over no matching series is empty, not 0, so NoData here is the healthy
+            # case (nothing crash-looping, nothing cordoned), unlike the rules above.
+            noDataState: OK
+            execErrState: Alerting
+            labels:
+              severity: warning
+              app: cluster
+            annotations:
+              summary: a node has been cordoned for 2 hours
+              description: >-
+                A node has been unschedulable for 2+ hours. Check `kubectl get nodes` and
+                `kubectl describe node <name>` (kured's weave.works/kured-* annotations show
+                whether a reboot is in progress). Check `kubectl -n kube-system logs -l
+                name=kured`. If the node is healthy, run `kubectl uncordon <name>`.
