@@ -1,0 +1,75 @@
+# kured (Kubernetes Reboot Daemon), pinned. It replaces the OS-level automatic reboot of
+# unattended-upgrades on the worker nodes. Apply it from ms-1 with:
+#
+#   kubectl apply -k deploy/platform/kured
+#
+# Why: a raw `systemctl reboot` keeps every pod object and its emptyDir. Pods then restart
+# into stale state on the same node. That is what kept wedging Argo CD's repo-server after
+# each wk-2 kernel update (Sep-Nov 2026). kured cordons and drains the node first, so pods
+# are evicted cleanly and come back fresh. It reboots, then uncordons. A lock in the kured
+# DaemonSet's annotation lets only one node reboot at a time.
+#
+# The flow on a worker:
+#   1. unattended-upgrades installs a kernel and writes /var/run/reboot-required
+#      (Automatic-Reboot is "false" on these nodes, see deploy/bootstrap/host-prep/apt/).
+#   2. kured checks for that file every --period, but acts only inside the window below.
+#   3. It takes the lock, drains (up to --drain-timeout), reboots, and uncordons on return.
+#      If the drain times out, it does NOT reboot. It uncordons and tries again next period.
+#
+# Scope: worker nodes only (homelab.kakde.eu/role=worker, i.e. wk-1 and wk-2). ms-1 is the only
+# control plane and the edge node is the only public entry point. Both still reboot by hand.
+#
+# Upgrading = bump the tag in both the resource URL and the image below.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - https://github.com/kubereboot/kured/releases/download/1.23.0/kured-1.23.0-combined.yaml
+
+images:
+  - name: ghcr.io/kubereboot/kured
+    newTag: "1.23.0"
+
+patches:
+  - target:
+      kind: DaemonSet
+      name: kured
+    patch: |-
+      apiVersion: apps/v1
+      kind: DaemonSet
+      metadata:
+        name: kured
+      spec:
+        template:
+          spec:
+            nodeSelector:
+              homelab.kakde.eu/role: worker
+            containers:
+              - name: kured
+                resources:
+                  requests: {cpu: 5m, memory: 16Mi}
+                  limits: {cpu: 100m, memory: 64Mi}
+  # Replace the whole command (a JSON patch, because strategic merge cannot merge a list of
+  # strings).
+  - target:
+      kind: DaemonSet
+      name: kured
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/command
+        value:
+          - /usr/bin/kured
+          - --reboot-sentinel=/sentinel/reboot-required
+          # Same quiet hours the nodes used before (wk-1 03:30, wk-2 04:30), now one window.
+          - --start-time=03:00
+          - --end-time=05:00
+          - --time-zone=Europe/Paris
+          - --period=15m
+          # Never wait forever on a drain (the default 0 means no limit).
+          - --drain-timeout=10m
+          # Pods may take up to 2 minutes to stop cleanly; then they are force-deleted.
+          - --skip-wait-for-delete-timeout=120
+          # If a node dies mid-reboot, its lock expires instead of blocking all future reboots.
+          - --lock-ttl=30m
+          # Visible in `kubectl describe node`: kured's reboot-in-progress and last-reboot notes.
+          - --annotate-nodes=true

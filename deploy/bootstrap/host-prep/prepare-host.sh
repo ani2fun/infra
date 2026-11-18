@@ -124,19 +124,17 @@ for m in br_netfilter vxlan overlay; do
   modprobe "$m" 2>/dev/null || true
 done
 
-# ---------- hardware watchdog + unattended-upgrade reboot window ----------
+# ---------- hardware watchdog + unattended-upgrade reboot policy ----------
 # Added 2026-07-18 after wk-1 hung with no panic and stayed down ~96 minutes: nothing on the
 # box could reset it, and nothing brings a bare-metal mini PC back on its own.
-echo "==> installing hardware watchdog + reboot window"
+echo "==> installing hardware watchdog + disabling unattended reboot (kured owns reboots)"
 install -m 0644 "$ROOT/modules-load/watchdog.conf" /etc/modules-load.d/watchdog.conf
 mkdir -p /etc/systemd/system.conf.d
 install -m 0644 "$ROOT/systemd/10-watchdog.conf" /etc/systemd/system.conf.d/10-watchdog.conf
 
-# STAGGERED per node so the cluster never loses two at once. Override per host:
-#   UPGRADE_REBOOT_TIME=04:30 ./prepare-host.sh
+# unattended-upgrades never reboots the node itself: kured (deploy/platform/kured) drains and
+# reboots the worker nodes when /var/run/reboot-required appears. See the file for why.
 install -m 0644 "$ROOT/apt/52unattended-upgrades-reboot" /etc/apt/apt.conf.d/52unattended-upgrades-reboot
-sed -i "s/^Unattended-Upgrade::Automatic-Reboot-Time .*/Unattended-Upgrade::Automatic-Reboot-Time \"${UPGRADE_REBOOT_TIME:-03:30}\";/" \
-  /etc/apt/apt.conf.d/52unattended-upgrades-reboot
 
 # Arm it now rather than waiting for the next boot. A board whose firmware locks the TCO off
 # reports "unable to reset NO_REBOOT flag" here and simply gets no /dev/watchdog — see the

@@ -1,17 +1,18 @@
-// Automatic reboot after an unattended upgrade that requires one (added 2026-07-18).
+// unattended-upgrades must NOT reboot the node itself. kured does it (changed 2026-11-18).
 //
-// Before this, unattended-upgrades installed kernels but never rebooted, so a node ran an old
-// kernel indefinitely and only picked the new one up during an UNPLANNED restart — which is how
-// wk-1 came back on 7.0.0-28 after dying mid-afternoon. Taking the reboot at a known hour is
-// strictly better than discovering it at a random one.
+// History: on 2026-07-18 this file turned on Automatic-Reboot at a staggered hour per node
+// (wk-1 03:30, wk-2 04:30). Before that, nodes ran old kernels indefinitely and only picked up a
+// new one during an unplanned restart. The automatic reboot fixed that, but it never drained
+// the node. Pods were killed in place and restarted into stale state on the same node. After
+// every wk-2 kernel reboot (Sep-Nov 2026), Argo CD's repo-server crash-looped
+// (`/bin/ln: Already exists`), and no deploy happened until someone restarted it by hand.
 //
-// STAGGER THE TIME PER NODE so the cluster never loses two at once. In use:
-//   wk-1 = 03:30 · wk-2 = 04:30
-// prepare-host.sh sets it from UPGRADE_REBOOT_TIME (default 03:30).
+// Now: upgrades still install unattended, and a kernel update still writes
+// /var/run/reboot-required. The kured DaemonSet (deploy/platform/kured) watches that file on the
+// worker nodes. Inside its 03:00-05:00 window it cordons and drains the node, reboots it, and
+// uncordons it. A lock means only one node at a time, so the per-node stagger is no longer
+// needed.
 //
-// NOTE: this does NOT drain the node first — pods are terminated by the kubelet shutting down.
-// Acceptable for single-replica workloads with graceful shutdown, but a drain hook is the better
-// long-term answer while Postgres is pinned to one node's local storage.
-Unattended-Upgrade::Automatic-Reboot "true";
-Unattended-Upgrade::Automatic-Reboot-WithUsers "true";
-Unattended-Upgrade::Automatic-Reboot-Time "03:30";
+// ms-1 and the edge node have no kured pod, so their pending reboots stay a manual,
+// operator-watched job (deploy/dr/UPGRADE.md).
+Unattended-Upgrade::Automatic-Reboot "false";

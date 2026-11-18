@@ -108,7 +108,7 @@ Three layers now address it, and only two are in this repo:
 |---|---|---|
 | BIOS "Restore on AC Power Loss" → **Power On** | **Manual, per machine** | Power loss. Cannot be set from the OS — `fwupdmgr` reports "This system doesn't support firmware settings" on these boards. |
 | Hardware watchdog (`iTCO_wdt` + `RuntimeWatchdogSec=60`) | `modules-load/watchdog.conf`, `systemd/10-watchdog.conf` | A hard hang that stops the kernel scheduling. The board resets itself after 60s. |
-| Staggered unattended-upgrade reboot window | `apt/52unattended-upgrades-reboot` | Kernels being activated by an unplanned restart at an arbitrary time. |
+| Drained reboot after a kernel update (kured, since 2026-11-18; before that a staggered unattended-upgrade reboot) | `deploy/platform/kured/`, `apt/52unattended-upgrades-reboot` | Kernels being activated by an unplanned restart at an arbitrary time. |
 
 **Watchdog status per node.** `wk-1` runs it for real (Intel PCH TCO v6, `state=active`,
 `timeout=60`). **`wk-2` cannot**: its firmware locks the TCO off and the driver refuses to
@@ -117,13 +117,21 @@ is installed anyway so it activates if that BIOS option is ever enabled. Deliber
 fallback — a software watchdog is a kernel timer, so the very hang it would need to catch also
 stops it firing; installing one would be reassurance rather than cover.
 
-**Reboot windows are staggered** (`wk-1` 03:30, `wk-2` 04:30) so an upgrade night never takes two
-nodes at once. `prepare-host.sh` reads `UPGRADE_REBOOT_TIME` (default `03:30`).
+**Worker reboots go through kured (changed 2026-11-18).** Until then, unattended-upgrades rebooted
+`wk-1` at 03:30 and `wk-2` at 04:30 with no drain. Pods were killed in place and restarted into
+their old state on the same node. After every `wk-2` kernel reboot from September to November,
+Argo CD's repo-server crash-looped on `/bin/ln: Already exists`, and no deploy happened until
+someone restarted it by hand. Now `Automatic-Reboot` is `"false"`. The kured DaemonSet
+([`../../platform/kured/`](../../platform/kured/kustomization.yaml)) runs on
+`homelab.kakde.eu/role=worker` nodes. It sees `/var/run/reboot-required`, waits for the
+03:00–05:00 Europe/Paris window, takes a cluster-wide lock (so only one node reboots at a time),
+drains, reboots, and uncordons. A drain that does not finish in 10 minutes cancels that reboot
+until the next check. `kubectl describe node` shows kured's annotations.
 
 **`ms-1` and `vm-1` are deliberately excluded** from that automation. `vm-1` is the only public
 entry point, so an unattended 03:30 reboot is an unannounced outage of every `*.kakde.eu` host;
 `ms-1` is the only API server, with no second control-plane node to carry the cluster. Neither
-would be drained first, because the unattended path never drains. The cost of that choice is real
+would be drained first: kured runs only on the worker nodes. The cost of that choice is real
 and was visible by 2026-08-12: both nodes had been carrying pending kernel reboots for 11 and 17
 weeks respectively. The countermeasure is the operator-run patching section in
 [`../../dr/UPGRADE.md`](../../dr/UPGRADE.md) plus a recurring reminder — not automation that
