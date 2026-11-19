@@ -38,6 +38,54 @@ ssh vm-1 'systemctl is-active homelab-fw-edge.service edge-guardrail.service'
 # expected: active for each
 ```
 
+**L0-D** OOM self-heal is actually in effect (not just configured).
+
+Run this **after every node reboot** and after any k3s restart or upgrade.
+Checking the file is not enough: `systemd-sysctl` applies
+`20-oom-resilience.conf` correctly at boot, then the kubelet starts and resets
+`vm.panic_on_oom` to 0 **silently**, because `--protect-kernel-defaults` is not
+set. `oom-resilience-reassert.timer` is what puts the value back, within 5
+minutes of each kubelet start. From 2026-06-13 to 2026-11-19 nobody checked the
+live value, and the self-heal documented in `NODE-HARDENING.md` was off on all
+four nodes the whole time.
+
+```bash
+for h in ms-1 wk-1 wk-2 vm-1; do
+  echo "$h: live=$(ssh $h cat /proc/sys/vm/panic_on_oom)" \
+       "panic=$(ssh $h cat /proc/sys/kernel/panic)s" \
+       "timer=$(ssh $h systemctl is-active oom-resilience-reassert.timer)" \
+       "unit=$(ssh $h systemctl show -p Result --value oom-resilience-reassert.service)"
+done
+# expected on every node: live=1  panic=10s  timer=active  unit=success
+```
+
+`live=0` with `timer=active` right after a reboot is **not yet a failure** --
+the timer's first run is at `OnBootSec=2min`. Re-run the check after that.
+`live=0` more than 5 minutes after boot **is** a failure.
+
+If a node reports `live=0` persistently, read the unit's own verdict rather
+than guessing:
+
+```bash
+ssh wk-1 'systemctl list-timers oom-resilience-reassert.timer --all; \
+          journalctl -u oom-resilience-reassert.service -n 20 --no-pager'
+# the service fails loudly (non-zero ExecStartPost) if the value did not stick
+```
+
+**L0-E** Nothing claims `--protect-kernel-defaults`.
+
+The repo deliberately does **not** set it (see `NODE-HARDENING.md` for why: on a
+single-control-plane cluster it converts a sysctl mismatch into a kubelet that
+refuses to start). This gate exists so the choice stays a choice.
+
+```bash
+for h in ms-1 wk-1 wk-2 vm-1; do
+  echo "$h: $(ssh $h 'grep -c protect-kernel-defaults /etc/systemd/system/k3s*.service /etc/rancher/k3s/config.yaml 2>/dev/null | paste -sd, -')"
+done
+# expected: 0 matches everywhere (missing config.yaml is normal -- all K3s flags
+# live in INSTALL_K3S_EXEC in deploy/bootstrap/k3s/install-*.sh)
+```
+
 ## L1 -- Router and DNS
 
 **L1-A** Router port-forwards reachable from the edge node.

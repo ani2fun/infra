@@ -108,9 +108,26 @@ fi
 if [[ "$ROLE" == "edge" ]]; then
   install -m 0644 "$ROOT/sysctl/10-panic.conf" /etc/sysctl.d/10-panic.conf
   install -m 0644 "$ROOT/sysctl/99-cloudimg-ipv6.conf" /etc/sysctl.d/99-cloudimg-ipv6.conf
+else
+  # Magic SysRq is home-only: the edge has no attached keyboard, and its stock image
+  # ships a narrower kernel.sysrq=176 that we deliberately do not override.
+  install -m 0644 "$ROOT/sysctl/21-sysrq-console.conf" /etc/sysctl.d/21-sysrq-console.conf
 fi
 
 sysctl --system >/dev/null
+
+# ---------- OOM sysctl re-assert (the kubelet overwrites vm.panic_on_oom) ----------
+# The line above applies 20-oom-resilience.conf correctly. k3s then starts and the
+# kubelet enforces its own expected kernel values — including vm.panic_on_oom=0 —
+# silently, because --protect-kernel-defaults is not set. See NODE-HARDENING.md.
+echo "==> installing OOM sysctl re-assert timer"
+install -m 0644 "$ROOT/systemd/oom-resilience-reassert.service" /etc/systemd/system/oom-resilience-reassert.service
+install -m 0644 "$ROOT/systemd/oom-resilience-reassert.timer" /etc/systemd/system/oom-resilience-reassert.timer
+systemctl daemon-reload
+systemctl enable --now oom-resilience-reassert.timer
+# Apply once right now so a re-run of this script leaves the node protected without
+# waiting for the timer. Harmless if k3s is not installed yet.
+systemctl start oom-resilience-reassert.service || true
 
 # ---------- kernel modules ----------
 
@@ -230,10 +247,22 @@ if [[ -z "$swap_show" ]]; then echo "[swap-state] OFF (good)"; else echo "[swap-
 for k in net.ipv4.ip_forward net.ipv6.conf.all.forwarding \
          net.bridge.bridge-nf-call-iptables \
          net.ipv4.conf.all.rp_filter \
-         net.ipv4.conf.wg0.rp_filter ; do
+         net.ipv4.conf.wg0.rp_filter \
+         vm.panic_on_oom kernel.panic kernel.panic_on_oops ; do
   v="$(sysctl -n "$k" 2>/dev/null || echo '?')"
   printf '[sysctl] %-40s = %s\n' "$k" "$v"
 done
+
+# vm.panic_on_oom is the one value the kubelet actively fights (see
+# sysctl/20-oom-resilience.conf). Call it out instead of leaving the operator to
+# spot a 0 in the list above.
+if [[ "$(sysctl -n vm.panic_on_oom 2>/dev/null)" == "1" ]]; then
+  echo "[oom-self-heal] ON  (good: node-wide OOM panics and reboots in $(sysctl -n kernel.panic)s)"
+else
+  echo "[oom-self-heal] OFF (kubelet has reset vm.panic_on_oom to 0;"
+  echo "                 oom-resilience-reassert.timer restores it within 5 min)"
+fi
+echo "[reassert]   oom-resilience-reassert.timer: $(systemctl is-active oom-resilience-reassert.timer 2>/dev/null)"
 
 for m in br_netfilter vxlan overlay; do
   if lsmod | awk '{print $1}' | grep -qx "$m"; then

@@ -1,0 +1,35 @@
+# Re-apply sysctl/20-oom-resilience.conf after the kubelet has overwritten it.
+# Added 2026-11-19. See NODE-HARDENING.md, "The kubelet silently reverts
+# vm.panic_on_oom".
+#
+# WHY THIS UNIT EXISTS
+# --------------------
+# systemd-sysctl.service applies /etc/sysctl.d/20-oom-resilience.conf correctly at
+# boot. k3s then starts and the kubelet's container manager enforces its own
+# expected kernel values, which include vm.panic_on_oom=0 — the opposite of what
+# this cluster wants. Without --protect-kernel-defaults the kubelet rewrites the
+# value silently (the log line is V(2); k3s does not print it), so from 2026-06-13
+# until 2026-11-19 every node reported vm.panic_on_oom=0 while the repo claimed 1,
+# and the documented "node reboots itself on node-wide OOM" self-heal never worked.
+#
+# The alternative — kubelet-arg=protect-kernel-defaults=true — makes the kubelet
+# REFUSE TO START on any mismatch instead of overwriting. That is stricter, but on
+# a cluster with one control-plane node it turns a sysctl drift into an unbootable
+# API server. This unit fails safe instead: if it breaks, the node is merely back
+# to the kubelet's default, which is exactly where it was before.
+#
+# Started by oom-resilience-reassert.timer, not by a target. After= only matters
+# for the boot-time run; the timer's cadence is what covers k3s restarts.
+[Unit]
+Description=Re-apply OOM resilience sysctls after the kubelet overwrites them
+After=k3s.service k3s-agent.service
+ConditionPathExists=/etc/sysctl.d/20-oom-resilience.conf
+
+[Service]
+Type=oneshot
+ExecStart=/usr/sbin/sysctl --quiet --load=/etc/sysctl.d/20-oom-resilience.conf
+# Fail loudly rather than silently doing nothing: a failed unit shows up in
+# `systemctl --failed` and in gate L0-D. Written with grep rather than
+# `[ "$(cat ...)" = 1 ]` because systemd does its own `$`-expansion on
+# ExecStart lines, so a shell command substitution here would need escaping.
+ExecStartPost=/bin/sh -c 'grep -qx 1 /proc/sys/vm/panic_on_oom || { echo "vm.panic_on_oom did not stick after re-apply" >&2; exit 1; }'
