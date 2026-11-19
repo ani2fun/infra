@@ -11,6 +11,7 @@ to its current state.
 | One node lost, rest healthy | Skip to the relevant layer in `RUNBOOK.md`. WireGuard layer covers single-node WG re-key; K3s layer covers single-agent re-join. |
 | Node unreachable — no SSH, no kubectl | [`node-console-recovery.md`](node-console-recovery.md). Triage, physical console, SysRq REISUB. |
 | Planned K3s version bump or Ubuntu patching | [`UPGRADE.md`](UPGRADE.md). Nothing is broken — this is the scheduled-maintenance path. |
+| Crossing an Ubuntu LTS boundary (24.04 → 26.04) | [`RELEASE-UPGRADE.md`](RELEASE-UPGRADE.md). A separate project from `UPGRADE.md`, with no rollback. |
 | Database corruption, postgres pod gone | `scripts/dr/postgres-restore.sh` against the latest backup. See RUNBOOK §L8. |
 | Sealed-Secrets controller key lost | [`sealed-secrets-key-backup.md`](sealed-secrets-key-backup.md). |
 | Keycloak realm gone but DB intact | Reapply `deploy/apps/keycloak/`, then verify clients via the realm export JSON. See [`keycloak-realm-export.md`](keycloak-realm-export.md). |
@@ -39,6 +40,7 @@ A fresh Ubuntu 24.04.4 LTS installer image for each node.
 | [`README.md`](README.md) | This index. |
 | [`RUNBOOK.md`](RUNBOOK.md) | Step-by-step rebuild from cold OS. Layers L0–L11. |
 | [`UPGRADE.md`](UPGRADE.md) | Planned in-place upgrade of K3s and Ubuntu on a live cluster. Phases U0–U7. The counterpart to `RUNBOOK.md`: same layers, nothing wiped. |
+| [`RELEASE-UPGRADE.md`](RELEASE-UPGRADE.md) | Ubuntu LTS release upgrade, 24.04 → 26.04. Phases R0–R8. K3s does not move. No rollback — the node order, `tmux` requirement and proven console path all follow from that. |
 | [`node-console-recovery.md`](node-console-recovery.md) | A node stopped answering. Triage ladder from "is it the network" through physical console and SysRq REISUB. |
 | [`SNAPSHOT.md`](SNAPSHOT.md) | Frozen state on the day this pack was authored (2026-05-09). Versions, image digests, host facts, Argo CD revisions. **Never edited in place** — it is the historical anchor, and `verify-snapshot.sh` compares against it. |
 | [`SNAPSHOT-2026-08-12.md`](SNAPSHOT-2026-08-12.md) | Later capture: adds the `bytebase` and `dblab` namespaces, drops the retired whoami. |

@@ -866,15 +866,23 @@ anything, so do not let "reboot pending" persist for months.
 
 ## Ubuntu release upgrades (24.04 → 26.04)
 
-**Not covered by this runbook, and not currently available.** With `Prompt=lts` in
-`/etc/update-manager/release-upgrades`, `do-release-upgrade -c` reports no LTS upgrade on offer —
-Ubuntu does not open the LTS-to-LTS path until the `.1` point release.
+**Not covered by this runbook. See [`RELEASE-UPGRADE.md`](RELEASE-UPGRADE.md).**
 
-When it does open, treat it as its own project, not an extension of this one. A release upgrade
-changes the kernel series, systemd, iptables/nftables backends and the container runtime's
-dependencies all at once, and the interaction with Calico VXLAN over WireGuard is precisely where
-this cluster is most fragile. Do `vm-1` first as the least stateful node, and expect to revisit
-[`../bootstrap/host-prep/README.md`](../bootstrap/host-prep/README.md)'s `rp_filter` caveat.
+The path is now **open**: 26.04.1 LTS shipped, and with `Prompt=lts` in
+`/etc/update-manager/release-upgrades`, `do-release-upgrade -c` offers it on all four nodes
+(checked 2026-11-19). Nothing forces the move — 24.04 LTS has standard support until April 2029.
+
+It is its own project, not an extension of this one. A release upgrade replaces the kernel series,
+systemd, glibc, the netfilter tooling and the container runtime's dependencies in a single
+transaction, and the interaction with Calico VXLAN over WireGuard is precisely where this cluster
+is most fragile. It also has no rollback: none of these hosts has a filesystem snapshot, so a node
+that does not come back is a rebuild from [`RUNBOOK.md`](RUNBOOK.md) `L0`.
+
+`RELEASE-UPGRADE.md` carries the full procedure as phases `R0`-`R8`, including the
+`do-release-upgrade` fallback-sshd-on-1022 trap that the edge node's nftables allowlist would
+otherwise close, the host-prep conffiles that `--force-confold` does **not** protect there, and
+the `rp_filter` caveat from
+[`../bootstrap/host-prep/README.md`](../bootstrap/host-prep/README.md).
 
 **See also:** [`RUNBOOK.md`](RUNBOOK.md) · [`gates.md`](gates.md) ·
 [`node-console-recovery.md`](node-console-recovery.md) ·
