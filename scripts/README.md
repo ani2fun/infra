@@ -27,16 +27,21 @@ The two directories reach the cluster in **different ways**, and it matters:
   `KUBECONFIG=/etc/rancher/k3s/k3s.yaml`. They need `ssh ms-1` to work non-interactively
   (`BatchMode=yes`); they do **not** care about your local kubeconfig at all.
 
+- **`dr/check-pdb-pinning.sh` reaches nothing at all.** It is static: it renders the manifests in
+  Git and compares them against [`deploy/inventory/nodes.yaml`](../deploy/inventory/nodes.yaml).
+  No kubeconfig, no SSH, no cluster. It is the only script here that works with everything down.
+
 So a broken local kubeconfig breaks every `secrets/` script and no `dr/` script. That asymmetry
 is the usual reason one set works while the other does not.
 
 ### Prerequisites
 
 ```bash
-kubectl version --client     # secrets/*
+kubectl version --client     # secrets/*, and dr/check-pdb-pinning.sh
 kubeseal --version           # secrets/* that seal
-jq --version                 # the Keycloak IdP sync scripts
-ssh -o BatchMode=yes ms-1 true && echo ok    # dr/*
+jq --version                 # the Keycloak IdP sync scripts, dr/check-pdb-pinning.sh
+yq --version                 # dr/check-pdb-pinning.sh
+ssh -o BatchMode=yes ms-1 true && echo ok    # dr/*, except check-pdb-pinning.sh
 ```
 
 ---
@@ -144,6 +149,7 @@ the node it protects is not a backup.
 |---|---|
 | `snapshot-live-state.sh > out.md` | Markdown fragment of live state: per-node OS/kernel/sysctl/firewall, K3s and Calico versions, image+digest pairs for every workload, Argo revisions, PVs. Read-only. Paste into `deploy/dr/SNAPSHOT.md`. |
 | `verify-snapshot.sh` | Compares live headline versions against `SNAPSHOT.md`. **Exits 0 on no drift, 1 on drift** — so it works in a check loop. Currently reports one false positive; see gotchas. |
+| `check-pdb-pinning.sh [repo-root]` | **Static, not live.** Renders every kustomization and fails if a PodDisruptionBudget covers a workload whose `nodeSelector` matches one node — a budget that can only deadlock a drain, never protect. **Exits 0 clean, 1 on a finding, 2 on a tool error.** Run it before draining a pinned node; see [`deploy/dr/UPGRADE.md`](../deploy/dr/UPGRADE.md) U4.1. |
 
 Digests matter more than tags: tags move, digests do not. `SNAPSHOT.md` is what a rebuild pins to.
 
@@ -172,6 +178,14 @@ says `no drift detected`, the snapshot is current no matter how many `INFO` line
 (Until 2026-08-11 this script compared markdown-backticked snapshot values against bare live
 ones and so reported drift between two identical versions on every single run. Fixed by
 stripping backticks in `snap_version()`.)
+
+**`check-pdb-pinning.sh` judges Git, not the cluster.** It reads the committed manifests and the
+node labels recorded in `deploy/inventory/nodes.yaml`. A PodDisruptionBudget applied by hand, or a
+node label that exists only in the cluster, is invisible to it. The drift cuts both ways: if a
+second node carries `kakde.eu/edge` live but the inventory still lists one, this keeps flagging a
+budget that has become safe; if the inventory lists two and the cluster has one, it clears a budget
+that will still deadlock. Keep the inventory honest, and use `kubectl get pdb -A` for what is
+actually running.
 
 **Sealing while the cluster is unreachable fails confusingly.** `kubeseal` needs the cert, and
 the cert comes from the cluster. Bring WireGuard up or run from `ms-1`.
