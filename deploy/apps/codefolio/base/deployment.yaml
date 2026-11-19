@@ -5,7 +5,19 @@ metadata:
 spec:
   # Two replicas plus maxUnavailable 0: a deploy starts a new pod and waits for it to be Ready
   # before it stops an old one, and losing one pod (crash, eviction, node drain) still leaves
-  # one serving. The PodDisruptionBudget in pdb.yaml keeps a drain from evicting both at once.
+  # one serving.
+  #
+  # Deliberately NO PodDisruptionBudget. The prod overlay pins this Deployment to
+  # `kakde.eu/edge: "true"`, and exactly one node carries that label (vm-1 / ctb-edge-1, see
+  # deploy/inventory/nodes.yaml). A PDB protects a workload by assuming an evicted pod can be
+  # rescheduled elsewhere; a pod that cannot move anywhere never restores currentHealthy, so the
+  # budget drops to disruptionsAllowed: 0 after the first eviction and blocks the drain for good.
+  # That cost the 2026-11-18 upgrade a 300 s drain timeout for no gain: Traefik is edge-only too,
+  # so *.kakde.eu is down for the whole reboot whether or not codefolio keeps a replica. See
+  # deploy/dr/UPGRADE.md U4.1.
+  #
+  # Restore a PDB (maxUnavailable: 1) the moment a second node carries `kakde.eu/edge` — then the
+  # pods can move and the budget protects instead of blocks.
   replicas: 2
   strategy:
     type: RollingUpdate

@@ -382,6 +382,46 @@ ssh ms-1 'kubectl delete pod -n argocd -l app.kubernetes.io/name=argocd-repo-ser
 
 `vm-1` also has a long-pending kernel reboot, so this is the step that finally activates it.
 
+### U4.1 About draining this node
+
+As in `U5.1`, **the drain will not move anything.** `kakde.eu/edge: "true"` is on exactly one node
+— this one ([`../inventory/nodes.yaml`](../inventory/nodes.yaml)) — and it carries the matching
+`NoSchedule` taint, so Traefik and codefolio can run nowhere else. Evicted pods go `Pending` and
+stay there until `ctb-edge-1` is back. Drain anyway, for the graceful `SIGTERM`.
+
+**No workload pinned to this node may carry a PodDisruptionBudget.** A PDB protects a workload by
+assuming an evicted pod reschedules elsewhere and restores `currentHealthy`. Here nothing can move,
+so the first eviction takes `disruptionsAllowed` to 0 and the budget then refuses every further
+eviction. It cannot protect anything; it can only stall the drain, and that stall is added straight
+onto a public outage.
+
+This is not theoretical. On **2026-11-18** `codefolio` (`replicas: 2`, edge-pinned,
+`maxUnavailable: 1`) did exactly this: the drain evicted one replica, its replacement went `Pending`
+because the only node matching the selector was now cordoned, and the second replica refused to go
+with `Cannot evict pod as it would violate the pod's disruption budget` until the 300 s timeout
+expired. The budget bought nothing even in principle — Traefik is edge-only too, so `*.kakde.eu` was
+down for the whole reboot either way. **That PDB has been removed**
+([`../apps/codefolio/base/`](../apps/codefolio/base/deployment.yaml)). `replicas: 2` stays: it still
+covers rollouts (`maxUnavailable: 0`) and single-pod crashes, which is all it ever really did here.
+
+Before draining, confirm nothing has reintroduced one:
+
+```bash
+ssh ms-1 'kubectl get pdb -A'
+# expected: calico-apiserver, calico-typha, typing-trainer — and nothing on an edge-pinned workload
+```
+
+`typing-trainer` in that list is fine: it has no nodeSelector, so its replicas move between `wk-1`
+and `wk-2`. It reported `ALLOWED DISRUPTIONS: 1` throughout the 2026-11-18 upgrade and never
+blocked.
+
+If a budget ever does appear on an edge workload, delete it in Git and let Argo sync it away. Do
+**not** reach for `--disable-eviction` (`U5.1`), and do **not** `kubectl scale` the Deployment down
+by hand first: every app here syncs with `selfHeal: true`, so Argo restores the committed replica
+count and re-arms the deadlock in the middle of your drain.
+
+### U4.2 Run it
+
 ```bash
 ssh ms-1 'kubectl cordon ctb-edge-1'
 ssh ms-1 'kubectl drain ctb-edge-1 --ignore-daemonsets --delete-emptydir-data --force --timeout=300s'
@@ -394,7 +434,7 @@ ssh vm-1 'systemctl reboot'
 The Kubernetes node is named `ctb-edge-1`; the SSH alias is `vm-1`. Cordon/drain take the node
 name, `ssh` takes the alias.
 
-### U4.1 Verify and uncordon
+### U4.3 Verify and uncordon
 
 ```bash
 ssh ms-1 'kubectl uncordon ctb-edge-1'
@@ -429,9 +469,11 @@ it checkpoints cleanly, instead of being killed mid-write when the kubelet shuts
 same reason kured ([`../platform/kured/`](../platform/kured/kustomization.yaml)) drains the
 workers before their unattended kernel reboots. This runbook is the manual version of that.
 
-Do **not** reach for `--disable-eviction`. The only PodDisruptionBudgets in the cluster are
+Do **not** reach for `--disable-eviction`. The PodDisruptionBudgets in the cluster are
 `calico-apiserver` and `calico-typha` (`maxUnavailable: 1`), which one-node-at-a-time already
-satisfies. If a drain stalls, find out why rather than bypassing the budget.
+satisfies, plus `typing-trainer` in `apps-prod` (`maxUnavailable: 1`), whose replicas are not pinned
+to a node and can move to `wk-2`. None of them blocks this drain. If a drain stalls, find out why
+rather than bypassing the budget — `U4.1` describes the shape that actually caused one.
 
 ### U5.2 Run it
 
@@ -558,6 +600,7 @@ case where the datastore itself is damaged.
 | `wk-1` does not come back | Node `NotReady`, no SSH | [`node-console-recovery.md`](node-console-recovery.md). 96-minute precedent on 2026-07-18. The watchdog resets a hang after 60s; it does nothing for power loss. |
 | Postgres will not start after `wk-1` returns | `L8-B` fails | Read the pod logs before acting. The `U0.2` dump is the floor, but an unclean shutdown usually replays on its own. |
 | Extended public outage | `L10-A` failing after `U4` | Traefik is edge-only; check it is scheduled and that the guardrail (`L5-B`) did not reorder host iptables on reboot. |
+| Drain of `ctb-edge-1` stalls on a disruption budget | `Cannot evict pod as it would violate the pod's disruption budget`; the drain runs to its `--timeout` | A PDB has been put on an edge-pinned workload. Nothing can reschedule, so it can never clear itself. Delete that PDB in Git and let Argo sync it away (`U4.1`). Not `--disable-eviction`; not `kubectl scale`, which `selfHeal` reverts. Precedent: `codefolio`, 2026-11-18. |
 | containerd jumps with the K3s minor | Images fail to pull, odd runtime errors | Expected as part of the bump — check the K3s release notes for the containerd version and any runc/cgroup notes. |
 | A hand-edited systemd unit vanishes | A flag you relied on is gone | The installer rewrites the unit every run. Fold any local edit into the install script in Git first. |
 | **`argocd-repo-server` crash-loops after ANY k3s-agent restart** | Pod `0/1`, init container `copyutil` in `BackOff` with `/bin/ln: Already exists`; every Application goes `Sync: Unknown` with `ComparisonError … connection refused` | The pod's `emptyDir` outlives its containers, so once `copyutil` has run successfully its symlink collides on every later re-run. **Delete the pod** — a new one gets a clean volume. Argo cannot self-heal: without repo-server it renders no manifest, and its pods are pinned to `wk-2` by `workload=argocd` so they cannot move. Triggered on 2026-08-20 (twice) and after every `wk-2` kernel reboot until 2026-11-18. **Fixed 2026-11-18**: Argo CD is pinned at v3.6.1 ([`../platform/argocd/kustomization.yaml`](../platform/argocd/kustomization.yaml)), whose init container uses `ln -sf`, and kured now drains `wk-2` before a kernel reboot. If it ever comes back, the version pin has been changed: check the init command with `kubectl -n argocd get deploy argocd-repo-server -o jsonpath='{.spec.template.spec.initContainers[0].args}'`. |
