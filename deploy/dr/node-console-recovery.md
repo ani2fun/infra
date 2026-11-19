@@ -5,10 +5,26 @@ wk-1 wedge** (a runaway process drove it into node-wide OOM and it hung for ~7h
 until a manual power-cycle). Ordered from least to most invasive — stop as soon as
 one step gets you in.
 
-> **First, the good news:** every node now has `vm.panic_on_oom=1` + `kernel.panic=10`
-> (see `deploy/bootstrap/host-prep/sysctl/20-oom-resilience.conf`), so a node that
+> **First, check whether the node should have rebooted itself.** Every node is
+> configured with `vm.panic_on_oom=1` + `kernel.panic=10`
+> (`deploy/bootstrap/host-prep/sysctl/20-oom-resilience.conf`), so a node that
 > exhausts memory **reboots itself in ~10 s**. The steps below are the fallback for
 > when that doesn't fire (a true hang, a network fault, or a hardware issue).
+>
+> **The configured value is not proof.** The kubelet resets `vm.panic_on_oom` to 0
+> at every start, and `oom-resilience-reassert.timer` puts it back within 5 minutes
+> — a window, and a thing that can break. On a node you can still reach, read the
+> live value before assuming the self-heal was ever armed:
+>
+> ```bash
+> ssh wk-1 'cat /proc/sys/vm/panic_on_oom; systemctl is-active oom-resilience-reassert.timer'
+> # expected: 1 and active
+> ```
+>
+> If it reads 0, the node was never going to reboot itself. That was the state of
+> all four nodes from 2026-06-13 to 2026-11-19 — see
+> [`../bootstrap/host-prep/NODE-HARDENING.md`](../bootstrap/host-prep/NODE-HARDENING.md)
+> and gate L0-D.
 
 Reference addresses (from `deploy/inventory/`):
 

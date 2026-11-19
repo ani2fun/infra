@@ -9,14 +9,27 @@ human-readable reference.
 | Source in repo | Target path on node |
 |---|---|
 | `sysctl/99-k3s-calico.conf` | `/etc/sysctl.d/99-k3s-calico.conf` |
+| `sysctl/20-oom-resilience.conf` | `/etc/sysctl.d/20-oom-resilience.conf` |
+| `sysctl/10-map-count.conf` | `/etc/sysctl.d/10-map-count.conf` |
 | `../wireguard/99-wireguard.conf` (existing) | `/etc/sysctl.d/99-wireguard.conf` |
 | `modules-load/k3s-calico.conf` | `/etc/modules-load.d/k3s-calico.conf` |
+| `modules-load/watchdog.conf` | `/etc/modules-load.d/watchdog.conf` |
+| `systemd/10-watchdog.conf` | `/etc/systemd/system.conf.d/10-watchdog.conf` |
+| `systemd/oom-resilience-reassert.service` | `/etc/systemd/system/oom-resilience-reassert.service` |
+| `systemd/oom-resilience-reassert.timer` | `/etc/systemd/system/oom-resilience-reassert.timer` |
+| `apt/52unattended-upgrades-reboot` | `/etc/apt/apt.conf.d/52unattended-upgrades-reboot` |
+
+After install: `systemctl enable --now oom-resilience-reassert.timer`
+(`prepare-host.sh` does this). Without the timer the OOM sysctls in
+`20-oom-resilience.conf` are cosmetic — the kubelet resets `vm.panic_on_oom`
+to 0 at every start. See `NODE-HARDENING.md`.
 
 ## Home nodes only (ms-1, wk-1, wk-2)
 
 | Source | Target |
 |---|---|
 | `modules-load/k8s.conf` | `/etc/modules-load.d/k8s.conf` |
+| `sysctl/21-sysrq-console.conf` | `/etc/sysctl.d/21-sysrq-console.conf` |
 | `ssh/99-root-login.conf` | `/etc/ssh/sshd_config.d/99-root-login.conf` |
 | `netplan/<hostname>.yaml.example` | `/etc/netplan/01-network-manager-all.yaml` and/or `/etc/netplan/50-cloud-init.yaml` |
 
@@ -49,6 +62,13 @@ k3s-api-lockdown.service k3s-api-lockdown-allow-cluster.service`.
 
 After install: `systemctl enable --now homelab-fw-edge.service
 edge-guardrail.service`.
+
+The edge gets `20-oom-resilience.conf` like every other node (added 2026-11-19 —
+it has the *weakest* recovery of the four: no hardware watchdog, no BIOS
+restore-on-AC-power, and it is excluded from kured). It does **not** get
+`21-sysrq-console.conf`: the node is headless, and the Contabo image's
+`/etc/sysctl.d/10-magic-sysrq.conf` sets a deliberately narrower
+`kernel.sysrq=176` that a 20-prefixed file would have overridden.
 
 ## wk-2 specific
 

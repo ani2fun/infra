@@ -25,6 +25,9 @@
 #      reboots itself (kernel.panic=10) instead of wedging. Turns a multi-hour
 #      manual outage into a ~1-minute self-heal. (Mirrors sysctl/20-oom-resilience.conf,
 #      which prepare-host.sh installs on fresh builds.)
+#      The sysctl file alone does nothing: the kubelet resets vm.panic_on_oom to 0
+#      at every start. This script also installs oom-resilience-reassert.timer,
+#      which puts the value back. See NODE-HARDENING.md for the full story.
 #
 # Swap is NOT added: the repo runs swap-off on purpose (prepare-host.sh disables it).
 # The headroom comes from removing the desktop, not from swap.
@@ -113,19 +116,75 @@ cat > "$SYSCTL" <<'CONF'
 # Panic (and, with kernel.panic>0, auto-reboot) on a *node-wide* OOM. Value 1 does
 # NOT fire for cgroup/pod-limit OOMs (those still kill only the offending pod) — only
 # when the whole node is out of memory, exactly the wk-1 wedge we want to self-heal.
+#
+# This file is NOT sufficient on its own: the kubelet enforces vm.panic_on_oom=0 at
+# every start unless --protect-kernel-defaults is set, and does so silently. The
+# oom-resilience-reassert timer installed below is what makes the value stick.
 vm.panic_on_oom = 1
 kernel.panic = 10
 kernel.panic_on_oops = 1
 # Keep a larger free reserve so the kernel/network stack don't starve before the
 # OOM killer (or a kubelet eviction) can act.
 vm.min_free_kbytes = 131072
-# Magic SysRq fully enabled: a wedged-but-alive node can be rebooted SAFELY from a
-# physically-attached keyboard (Alt+SysRq+R,E,I,S,U,B) instead of a hard power cut
-# that risks the node-local Postgres data. See deploy/dr/node-console-recovery.md.
-kernel.sysrq = 1
+# Declared so this file states the live truth; the kubelet sets the same value
+# anyway, so writing it here changes nothing today.
+vm.overcommit_memory = 1
 CONF
 log "wrote $SYSCTL"
+
+# Magic SysRq is a separate file (home nodes only): a wedged-but-alive node can be
+# rebooted SAFELY from a physically-attached keyboard (Alt+SysRq+R,E,I,S,U,B) instead
+# of a hard power cut that risks the node-local Postgres data. The edge node is
+# headless and keeps its image's narrower kernel.sysrq=176.
+# See deploy/dr/node-console-recovery.md.
+cat > /etc/sysctl.d/21-sysrq-console.conf <<'CONF'
+# Homelab home nodes — deploy/bootstrap/host-prep/harden-node.sh
+kernel.sysrq = 1
+CONF
+log "wrote /etc/sysctl.d/21-sysrq-console.conf"
+
 sysctl --system >/dev/null
-log "panic_on_oom=$(cat /proc/sys/vm/panic_on_oom) kernel.panic=$(cat /proc/sys/kernel/panic)"
+
+# ---------------------------------------------------------------------------
+# 2b. RE-ASSERT TIMER — without this, the sysctl above is cosmetic
+# ---------------------------------------------------------------------------
+# systemd-sysctl applies the file correctly at boot; k3s then starts and the
+# kubelet's container manager rewrites vm.panic_on_oom to 0. The overwrite is
+# silent (V(2) log line, which k3s never prints), which is why every node reported
+# panic_on_oom=0 from 2026-06-13 to 2026-11-19 while the repo claimed 1.
+cat > /etc/systemd/system/oom-resilience-reassert.service <<'UNIT'
+[Unit]
+Description=Re-apply OOM resilience sysctls after the kubelet overwrites them
+After=k3s.service k3s-agent.service
+ConditionPathExists=/etc/sysctl.d/20-oom-resilience.conf
+
+[Service]
+Type=oneshot
+ExecStart=/usr/sbin/sysctl --quiet --load=/etc/sysctl.d/20-oom-resilience.conf
+ExecStartPost=/bin/sh -c 'grep -qx 1 /proc/sys/vm/panic_on_oom || { echo "vm.panic_on_oom did not stick after re-apply" >&2; exit 1; }'
+UNIT
+cat > /etc/systemd/system/oom-resilience-reassert.timer <<'UNIT'
+[Unit]
+Description=Periodically re-assert OOM resilience sysctls against the kubelet
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target
+UNIT
+systemctl daemon-reload
+systemctl enable --now oom-resilience-reassert.timer
+systemctl start oom-resilience-reassert.service || true
+log "installed oom-resilience-reassert.timer ($(systemctl is-active oom-resilience-reassert.timer))"
+
+if [[ "$(cat /proc/sys/vm/panic_on_oom)" == "1" ]]; then
+  log "OOM self-heal ON: panic_on_oom=1 kernel.panic=$(cat /proc/sys/kernel/panic)s"
+else
+  log "OOM self-heal OFF: panic_on_oom=$(cat /proc/sys/vm/panic_on_oom) — the kubelet holds it;"
+  log "  the timer restores it within 5 min. Re-check with gate L0-D."
+fi
 
 log "done. mem now: $(free -h | awk '/Mem:/{print $3" used / "$2" total"}')  default-target: $(systemctl get-default)"

@@ -1,0 +1,26 @@
+# Drives oom-resilience-reassert.service. Added 2026-11-19.
+#
+# OnBootSec=2min: systemd-sysctl finishes within seconds of boot, k3s starts 10-30s
+# later, and the kubelet overwrites vm.panic_on_oom during container-manager init.
+# Two minutes is comfortably after all of that, with no fragile ordering guesswork.
+#
+# OnUnitActiveSec=5min: the kubelet re-applies its expected values on EVERY start,
+# so a `systemctl restart k3s-agent`, a k3s upgrade, a crash-loop restart or a kured
+# reboot all reset vm.panic_on_oom to 0. A plain After=k3s-agent.service unit would
+# miss the restarts that systemd does not propagate. Polling catches all of them for
+# the cost of one idempotent sysctl write.
+#
+# The trade-off is an exposure window: for up to 5 minutes after a kubelet restart
+# the node has no OOM self-heal. That is accepted — the window is small next to the
+# hours-long wedge this protects against, and it cannot wedge a node the way
+# protect-kernel-defaults=true can.
+[Unit]
+Description=Periodically re-assert OOM resilience sysctls against the kubelet
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target
