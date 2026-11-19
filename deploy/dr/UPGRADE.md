@@ -22,11 +22,14 @@ Verification reuses the existing gate IDs from [`gates.md`](gates.md) rather tha
 **Changes.** The K3s binary and the kubelet/containerd that ship with it, on all four nodes. The
 Ubuntu package set and the running kernel.
 
+**Changes only when the target minor requires it.** Calico, in [`UC`](#uc--calico-when-the-target-minor-requires-it).
+Calico's tested Kubernetes range is narrower than K3s's, so it is usually Calico — not K3s — that
+decides when you may move. `UC` is lettered rather than numbered because it is conditional: skip it
+whenever the installed Calico already covers the target minor.
+
 **Does not change.** Any K3s flag — the install scripts are re-run with byte-identical
-`INSTALL_K3S_EXEC`, so node IPs, CIDRs, disabled components and node labels all carry over.
-Calico stays where it is: [`install-calico.sh`](../bootstrap/k3s/install-calico.sh) uses
-`kubectl create` and is bootstrap-only, so it **cannot** upgrade Calico, and this runbook does not
-attempt to. Nor does it cross an Ubuntu LTS boundary — see
+`INSTALL_K3S_EXEC`, so node IPs, CIDRs, disabled components and node labels all carry over. Nor
+does it cross an Ubuntu LTS boundary — see
 [Ubuntu release upgrades](#ubuntu-release-upgrades-2404--2604) for why that is a separate job.
 
 > **The install script rewrites the systemd unit on every run.** All K3s configuration lives in
@@ -42,10 +45,15 @@ attempt to. Nor does it cross an Ubuntu LTS boundary — see
       Upgrading on top of an existing fault turns one problem into two.
 - [ ] The target K3s version's release notes have been read, including the intermediate releases
       you are skipping. Check for removed APIs against what the apps actually use.
-- [ ] **Calico's support matrix has been checked against the target Kubernetes minor.** The cluster
-      runs Calico `v3.31.4` via the Tigera operator. If the target minor is outside its tested
-      range, upgrade Calico as a separate, prior maintenance window — with
-      `kubectl apply --server-side` against the new operator manifest, not `install-calico.sh`.
+- [ ] **Calico's tested range covers the target Kubernetes minor.** Check the live version
+      (`kubectl -n calico-system get installation default -o jsonpath='{.status.calicoVersion}'`)
+      against [Calico's requirements page](https://docs.tigera.io/calico/latest/getting-started/kubernetes/requirements)
+      for the target minor. If it does not reach, do [`UC`](#uc--calico-when-the-target-minor-requires-it)
+      first. This gate has teeth: it is the usual reason an upgrade must stop before it starts.
+- [ ] **kured will not reboot a node behind your back.** It runs on the workers inside
+      03:00-05:00 Europe/Paris and acts on any node carrying `/var/run/reboot-required` — which is
+      exactly what a node looks like after `apt full-upgrade` and before you reboot it. Either
+      finish outside that window, or pause kured (see [Node order](#node-order)).
 - [ ] Backups from `U0` are complete and copied **off the cluster**.
 - [ ] You have a console path to every node that does not depend on the cluster: physical
       keyboard/monitor for `ms-1`/`wk-1`/`wk-2`, provider web console for `vm-1`.
@@ -79,6 +87,28 @@ Each node follows the same shape:
 
 One disruption per node, not two. That is the whole reason the OS work and the K3s work share a
 window.
+
+**Pausing kured.** kured ([`../platform/kured/`](../platform/kured/)) cordons, drains and reboots
+`wk-1` and `wk-2` on its own inside 03:00-05:00 Europe/Paris, whenever it finds
+`/var/run/reboot-required`. A node you have just `apt full-upgrade`d and not yet rebooted looks
+exactly like that, so if this work might still be running at 03:00, park kured first:
+
+```bash
+ssh ms-1 'kubectl -n kube-system patch ds kured --type=merge \
+  -p "{\"spec\":{\"template\":{\"spec\":{\"nodeSelector\":{\"homelab.kakde.eu/role\":\"kured-paused\"}}}}}"'
+# expected: daemonset.apps/kured patched — DESIRED drops to 0, no node carries that label
+```
+
+Restore it in `U7`, not before:
+
+```bash
+ssh ms-1 'kubectl -n kube-system patch ds kured --type=merge \
+  -p "{\"spec\":{\"template\":{\"spec\":{\"nodeSelector\":{\"homelab.kakde.eu/role\":\"worker\"}}}}}"'
+# expected: DESIRED back to 2
+```
+
+This is a deliberate no-match nodeSelector rather than a kured lock annotation: it is mechanical,
+obvious in `kubectl get ds`, and cannot be mistaken for a reboot already in progress.
 
 ### The apt command, and why it carries those flags
 
@@ -177,6 +207,118 @@ already like that.
 
 ---
 
+## UC — Calico, when the target minor requires it
+
+**Goal.** The CNI is on a release whose tested Kubernetes range covers the minor you are about to
+move to — *before* K3s moves.
+
+**Why it comes first, and why it is not optional.** Calico's tested Kubernetes range is narrower
+than K3s's release cadence, so Calico is normally the binding constraint on when this cluster may
+upgrade. Each Calico minor overlaps the one before it at the top of its range, and that overlap is
+the whole trick: it lets you upgrade Calico while Kubernetes stands still, then upgrade Kubernetes
+onto ground the new Calico already covers. Never the other way round — a Kubernetes minor ahead of
+what the CNI was tested against puts the cluster's networking in untested territory, and on this
+cluster Calico VXLAN over WireGuard at MTU 1370 is the most fragile layer there is.
+
+Worked example, the 2026-11-18 upgrade:
+
+| Calico | Tested Kubernetes |
+|---|---|
+| `v3.31` (installed) | 1.32 – **1.35** |
+| `v3.33` (target) | **1.35** – 1.37 |
+
+The cluster sat on 1.35, so `v3.31` was still supported but had no headroom: 1.36 was out of range.
+`v3.33` covers 1.35, so it could be installed with K3s untouched, and it also covers 1.36 and 1.37
+— one CNI upgrade clearing two future K3s hops.
+
+> **[`install-calico.sh`](../bootstrap/k3s/install-calico.sh) cannot do this.** It uses
+> `kubectl create`, which fails with `AlreadyExists` against a live cluster. It is bootstrap-only.
+> Upgrading needs `apply --server-side`, because Calico's CRD manifest is far too large for
+> `kubectl apply`'s client-side last-applied annotation.
+
+### UC.1 Confirm what is installed
+
+```bash
+ssh ms-1 'kubectl -n calico-system get installation default -o jsonpath="{.status.calicoVersion}"; echo
+kubectl -n tigera-operator get deploy tigera-operator -o jsonpath="{.spec.template.spec.containers[0].image}"; echo'
+# expected: the running Calico version, then the operator image tag
+```
+
+Read [Calico's upgrade notes](https://docs.tigera.io/calico/latest/operations/upgrading/upgrade-notes)
+for every release you cross. Calico supports upgrading from the **two** previous minors, so a
+single-step 3.31 to 3.33 is covered; three minors behind is not, and needs an intermediate stop.
+
+### UC.2 Upgrade the operator and CRDs
+
+Set the target once:
+
+```bash
+CALICO=v3.33.1
+```
+
+```bash
+ssh ms-1 "kubectl apply --server-side --force-conflicts \
+  -f https://raw.githubusercontent.com/projectcalico/calico/${CALICO}/manifests/operator-crds.yaml"
+ssh ms-1 "kubectl apply --server-side --force-conflicts \
+  -f https://raw.githubusercontent.com/projectcalico/calico/${CALICO}/manifests/tigera-operator.yaml"
+```
+
+`--force-conflicts` is needed because the original objects were created by `kubectl create`, so
+field ownership belongs to a client-side manager; server-side apply refuses to take it over
+without this. It is safe here: the manifest you are applying is the full, authoritative upstream
+one.
+
+**Do not re-apply `calico-custom-resources.yaml`.** The `Installation` and `APIServer` CRs already
+exist and hold this cluster's settings — VXLAN, MTU 1370, `nodeAddressAutodetectionV4:
+NodeInternalIP`. The operator reads them and rolls the data plane itself. Re-applying is how you
+lose an MTU.
+
+### UC.3 Watch the roll
+
+The operator upgrades `calico-node` as a DaemonSet rollout, one node at a time. Nothing needs
+draining, but pod networking on each node is briefly disturbed as its `calico-node` restarts.
+
+```bash
+ssh ms-1 'kubectl -n calico-system rollout status ds/calico-node --timeout=10m'
+# expected: daemon set "calico-node" successfully rolled out
+ssh ms-1 'kubectl -n calico-system get pods'
+# expected: all Running; one calico-node per node; apiserver, typha, kube-controllers up
+ssh ms-1 'kubectl -n calico-system get installation default -o jsonpath="{.status.calicoVersion}"; echo'
+# expected: the target version
+```
+
+### UC.4 Prove the data plane, not just the pods
+
+Calico pods reporting `Running` is weaker evidence than it looks — an MTU or encapsulation
+regression leaves every pod healthy and breaks only traffic that crosses nodes.
+
+```bash
+ssh ms-1 'kubectl -n calico-system get installation default \
+  -o jsonpath="{.spec.calicoNetwork.mtu}{\"\n\"}{.spec.calicoNetwork.ipPools[0].encapsulation}{\"\n\"}"'
+# expected: 1370 then VXLAN — if MTU came back empty or 1440, stop and fix before going on
+```
+
+**Gate:** [L3-B, L3-C](gates.md#l3----k3s-and-calico) — Calico pods Running, and CoreDNS still
+resolves. Then [L10-A](gates.md#l10----apps-and-public-reachability): public reachability exercises
+the full edge-to-pod path across nodes, which is exactly what a bad MTU breaks.
+
+Let the cluster sit for a few minutes and re-check that no pod has begun crash-looping before you
+move on to `U1`.
+
+### UC.5 Record it
+
+Bump the pin in [`../bootstrap/k3s/install-calico.sh`](../bootstrap/k3s/install-calico.sh) and the
+`Calico version` line in [`../bootstrap/k3s/README.md`](../bootstrap/k3s/README.md), so a rebuild
+produces the version you now run.
+
+**Rollback.** Worse than a K3s rollback, and worth knowing before you start: re-applying the older
+operator usually works, but a CRD schema that moved forward does not move back cleanly, and you
+discover it as pods that cannot get an IP. Treat Calico as forward-only in practice. The real
+safety net is that `UC` happens while Kubernetes is untouched, so if Calico misbehaves you still
+have a cluster on a known-good Kubernetes to debug it on.
+
+---
+
 ## U1 — Bump the pins in Git first
 
 **Goal.** The repo and the running cluster never disagree about what version is deployed.
@@ -219,9 +361,19 @@ ssh ms-1 'kubectl cordon ms-1'
 ssh ms-1 'kubectl drain ms-1 --ignore-daemonsets --delete-emptydir-data --force --timeout=300s'
 ```
 
-`ms-1` carries a `NoSchedule` control-plane taint, and the only pods on it are `node-exporter` and
-`vector` — both DaemonSet-managed, so `--ignore-daemonsets` skips them and the drain is genuinely a
-no-op. Run it anyway: it costs nothing and keeps the procedure identical across all four nodes.
+`ms-1` carries a `NoSchedule` control-plane taint, so nothing new lands there, but the drain is
+**not** a no-op. Four DaemonSet pods are skipped by `--ignore-daemonsets` (`calico-node`,
+`csi-node-driver`, `node-exporter`, `vector`), and three ordinary pods are genuinely evicted and
+rescheduled onto other nodes:
+
+| Evicted | Why it matters |
+|---|---|
+| `coredns` | Cluster DNS briefly relocates. Harmless with a replica elsewhere, but it is why `L3-C` is worth re-running after, not before, the node returns. |
+| `local-path-provisioner` | Only needed to *provision* new PVCs. Existing PVs on `wk-1` are untouched — the provisioner is not in the I/O path. |
+| `metrics-server` | `kubectl top` and HPA metrics go blind until it restarts. Nothing in this cluster scales on them. |
+
+They do not come back to `ms-1` on their own after the uncordon, because Kubernetes does not
+rebalance. That is cosmetic. Expect a different `coredns` node placement than you started with.
 
 ### U2.2 OS packages
 
@@ -540,6 +692,7 @@ the reason for it is the same: a Calico fault and a cert fault look identical fr
 | Host | [L0-B, L0-C](gates.md#l0----host-os) | swap off, sysctls, modules, firewall units enabled |
 | WireGuard | [L2-A, L2-B](gates.md#l2----wireguard-mesh) | 3 peers each, full-mesh ping |
 | K3s + Calico | [L3-A, L3-B, L3-C](gates.md#l3----k3s-and-calico) | nodes Ready, Calico Running, CoreDNS resolves |
+| Calico data plane | — | `installation default` still reports MTU 1370 + VXLAN, and its `calicoVersion` is what `UC` installed |
 | Sealed-Secrets | [L4-A, L4-B](gates.md#l4----sealed-secrets-controller) | controller up, a committed SealedSecret still decrypts |
 | Traefik | [L5-A, L5-B, L5-C](gates.md#l5----traefik) | edge-only placement, guardrail, public listener |
 | cert-manager | [L6-A, L6-B](gates.md#l6----cert-manager) | ClusterIssuers Ready |
@@ -568,12 +721,28 @@ ssh ms-1 'kubectl get events -A --field-selector type=Warning --sort-by=.lastTim
 
 ```bash
 scripts/dr/snapshot-live-state.sh > deploy/dr/SNAPSHOT-$(date -u +%Y-%m-%d).md
-scripts/dr/verify-snapshot.sh
-# expected: no K3s version drift reported
+scripts/dr/verify-snapshot.sh deploy/dr/SNAPSHOT-$(date -u +%Y-%m-%d).md
+# expected: OK on every row, no drift
+```
+
+**Pass the new snapshot explicitly.** With no argument the script checks against
+[`SNAPSHOT.md`](SNAPSHOT.md), the frozen 2026-05-09 anchor, which is never edited — so after any
+upgrade it reports K3s drift permanently and on purpose. That default answers "how far have we
+moved from the original build?"; the argument form answers "does the cluster match what we expect
+right now?". Both are useful; only the second should be quiet.
+
+If you paused kured in [Node order](#node-order), restore it now — this is the step people forget,
+and the symptom is workers quietly never rebooting again:
+
+```bash
+ssh ms-1 'kubectl -n kube-system patch ds kured --type=merge \
+  -p "{\"spec\":{\"template\":{\"spec\":{\"nodeSelector\":{\"homelab.kakde.eu/role\":\"worker\"}}}}}"'
+ssh ms-1 'kubectl -n kube-system get ds kured'
+# expected: DESIRED 2, READY 2
 ```
 
 Then point [`README.md`](README.md)'s pack-contents table at the new snapshot, and commit
-everything together with the pin bump from `U1`.
+everything together with the pin bump from `U1` and the Calico pin from `UC.5`.
 
 The upgrade is done when four nodes are Ready on the new version, every Argo Application is
 Synced + Healthy, `https://kakde.eu` serves a valid certificate, and `verify-snapshot.sh` is quiet.
@@ -610,6 +779,7 @@ case where the datastore itself is damaged.
 | Risk | Signal | What to do |
 |---|---|---|
 | Control plane unreachable after reboot | `kubectl` times out from everywhere | WireGuard first (`U2.5`) — the API's only TLS SAN is the WG IP. If `wg0` is down, no remote `kubectl` exists; use the physical console on `ms-1`. |
+| Kubernetes minor ahead of Calico's tested range | Cross-node traffic fails while every pod reads `Running`; DNS flaky | Do not get here — `UC` and the pre-flight gate exist to prevent it. If you already have, upgrading Calico forward is the fix, not rolling K3s back. |
 | Calico does not settle | `calico-node` not Ready, pods stuck `ContainerCreating` | Give it minutes, not seconds. Then check the Tigera operator logs. Calico's tested range against the new Kubernetes minor is a pre-flight item for exactly this reason. |
 | `wk-1` does not come back | Node `NotReady`, no SSH | [`node-console-recovery.md`](node-console-recovery.md). 96-minute precedent on 2026-07-18. The watchdog resets a hang after 60s; it does nothing for power loss. |
 | Postgres will not start after `wk-1` returns | `L8-B` fails | Read the pod logs before acting. The `U0.2` dump is the floor, but an unclean shutdown usually replays on its own. |
@@ -644,17 +814,20 @@ of pending kernel reboots before this upgrade. The countermeasure is a recurring
 reminder to run the routine-patching section below — not automation that reboots the control plane
 and the public edge unsupervised.
 
-State as of 2026-08-20, which is what this upgrade is about to clear:
+State as of 2026-11-18, which is what this upgrade is about to clear:
 
-| Node | Running kernel | Installed, awaiting reboot |
-|---|---|---|
-| `ms-1` | 6.17.0-29 | 6.17.0-35 — **pending** |
-| `vm-1` | 6.8.0-110 | 6.8.0-111 — **pending** |
-| `wk-1` | 7.0.0-28 | 7.0.0-29 — **pending** (its 03:30 unattended reboot has not fired yet) |
-| `wk-2` | 7.0.0-29 | none — clean, it auto-rebooted at 04:32 |
+| Node | Running kernel | Installed, awaiting reboot | Uptime |
+|---|---|---|---|
+| `ms-1` | 6.17.0-29 | 7.0.0-43 — **pending** | 25 weeks |
+| `vm-1` | 6.8.0-147 | 6.8.0-149 — **pending** | 4 weeks |
+| `wk-1` | 7.0.0-43 | none — clean | 4 days |
+| `wk-2` | 7.0.0-43 | none — clean | 4 days |
 
-`wk-1` being pending shows the auto-reboot is a delay, not an exemption: the package lands, and the
-node waits for its window. `ms-1` and `vm-1` wait for *you*.
+Read that table as the argument for the whole section. The two automated nodes are four days old
+and current. `ms-1` has been up 25 weeks and is two kernel series behind what is already installed
+on its own disk — it skipped 6.17.0-35 and 6.17.0-40 entirely and is now holding 7.0.0-43 unbooted.
+An uptime that long on a control plane is not stability; it is an unexercised reboot path, and the
+first time you find out whether the node comes back cleanly should not be during an incident.
 
 ---
 
