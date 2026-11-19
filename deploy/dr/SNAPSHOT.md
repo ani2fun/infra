@@ -95,6 +95,7 @@ Custom firewall systemd units (per node):
 | `k3s-api-lockdown-allow-cluster.service` | active | -- | -- | -- |
 | `homelab-fw-edge.service` | -- | -- | -- | active |
 | `edge-guardrail.service` | -- | -- | -- | active |
+| `nftables.service` (loads `inet edgeguard`) | -- | -- | -- | active |
 
 ---
 
@@ -200,7 +201,7 @@ Both use the Cloudflare DNS-01 solver. Cloudflare API token is in the
 | WireGuard private keys per node | password manager (4 entries) | (operator records) | manually copy to `/etc/wireguard/wg0.key` |
 | wk-2 Wi-Fi PSK | password manager | (operator records) | netplan template fill-in |
 | Cloudflare API token | Cloudflare dashboard (regenerate as needed) | (operator records) | `kubectl create secret generic cloudflare-api-token` |
-| `ADMIN_SSH_ALLOW_IP` (current home IP) | record in password manager | (operator records) | fill into `deploy/bootstrap/host-prep/firewall/edge-allowlist.env` |
+| `ADMIN_SSH_ALLOW_IP` (current home IP) | record in password manager | (operator records) | set in `/etc/edge-allowlist.env` on vm-1, then re-run `prepare-host.sh` |
 
 ---
 

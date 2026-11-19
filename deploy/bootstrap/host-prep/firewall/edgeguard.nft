@@ -1,0 +1,58 @@
+# Primary public-facing allowlist for vm-1 (ctb-edge-1).
+#
+# Installed to /etc/nftables.d/edgeguard.nft and loaded by the stock
+# nftables.service via /etc/nftables.conf (`include "/etc/nftables.d/*.nft"`).
+#
+# This table runs at hook priority -200 -- ahead of edge_guardrail (-50),
+# Calico, and the iptables-nft INPUT chain -- so it is the first thing public
+# traffic meets and the only place the operator SSH allowlist is enforced.
+# edge-guardrail.sh deliberately accepts `tcp dport 22` from anywhere; it is
+# belt-and-braces for everything else, not the SSH gate.
+#
+# $ADMIN_SSH_ALLOW_IP is NOT defined here. prepare-host.sh generates
+# /etc/nftables.d/00-edge-allowlist.nft from /etc/edge-allowlist.env, and the
+# glob include pulls that file in first (alphabetical order), so the define is
+# in scope by the time this file is parsed. The operator's home IP therefore
+# never lands in Git.
+#
+# The create/delete/recreate prologue makes `nft -f /etc/nftables.conf`
+# idempotent: without it a re-run appends a second copy of every rule.
+# This is the one intentional difference from the hand-written file that was
+# live on vm-1 before this was brought under version control.
+#
+# Do NOT apply this with `systemctl restart nftables.service` on a running
+# node: that unit's ExecStop is `nft flush ruleset`, which also destroys
+# Calico's tables. Use `nft -f /etc/nftables.conf`.
+
+table inet edgeguard
+delete table inet edgeguard
+
+table inet edgeguard {
+  chain input {
+    type filter hook input priority -200; policy drop;
+
+    ct state established,related accept
+    iif "lo" accept
+
+    # ICMP for diagnostics / PMTU
+    ip protocol icmp accept
+    ip6 nexthdr ipv6-icmp accept
+
+    # Allow all cluster overlay/pod interfaces (internal traffic)
+    iifname "wg0" accept
+    iifname "cali*" accept
+    iifname "vxlan.calico" accept
+    iifname "cni0" accept
+
+    # Operator SSH, from the single home IP in /etc/edge-allowlist.env
+    ip saddr $ADMIN_SSH_ALLOW_IP tcp dport 22 accept
+
+    # WireGuard
+    udp dport 51820 accept
+
+    # Web
+    tcp dport { 80, 443 } accept
+
+    # (Implicit) everything else dropped, including 10250 from the internet
+  }
+}

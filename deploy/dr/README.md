@@ -82,7 +82,7 @@ Some state lives outside Git and must be backed up separately:
 | Sealed-Secrets master key | Decryption key for everything in Git | `scripts/dr/sealed-secrets-key-backup.sh` / `-restore.sh` |
 | K3s join token | Generated at server install | Read from `ms-1:/var/lib/rancher/k3s/server/node-token` after server install |
 | Let's Encrypt ACME account | Auto-regenerated | cert-manager re-registers on fresh install |
-| `ADMIN_SSH_ALLOW_IP` (current home IP) | Operator-specific, changes when ISP rotates | Look up at `https://ifconfig.me` and put in `deploy/bootstrap/host-prep/firewall/edge-allowlist.env` |
+| `ADMIN_SSH_ALLOW_IP` (current home IP) | Operator-specific, changes when ISP rotates | Look up at `https://ifconfig.me`, set in `/etc/edge-allowlist.env` on vm-1, re-run `prepare-host.sh` |
 | wk-2 Wi-Fi PSK | Real secret | Restore from password manager or move wk-2 to wired Ethernet |
 
 See [`secret-recovery.md`](secret-recovery.md) for the complete decision

@@ -97,31 +97,40 @@ Each node follows the same shape:
 sshd does not strand you. On `vm-1` that fallback is useless as shipped: two nftables tables
 filter `eth0`, both with `policy drop`, and neither permits 1022.
 
-| Table | Priority | Source | Loaded by |
-|---|---|---|---|
-| `inet edgeguard` | `-200` | `/etc/nftables.d/edgeguard.nft` | `nftables.service` |
-| `inet edge_guardrail` | `-50` | `/usr/local/sbin/edge-guardrail.sh` | `edge-guardrail.service` |
+| Table | Priority | Source on the node | Source in the repo | Loaded by |
+|---|---|---|---|---|
+| `inet edgeguard` | `-200` | `/etc/nftables.d/edgeguard.nft` | `deploy/bootstrap/host-prep/firewall/edgeguard.nft` | `nftables.service` |
+| `inet edge_guardrail` | `-50` | `/usr/local/sbin/edge-guardrail.sh` | `deploy/bootstrap/host-prep/firewall/edge-guardrail.sh` | `edge-guardrail.service` |
 
 `edgeguard` accepts SSH only from the operator's home IP; `edge_guardrail` accepts `tcp dport 22`
-on `eth0`. Port 1022 is dropped by both. `ufw` is inactive and the `iptables` `INPUT` policy is
-`ACCEPT`, so these two tables are the whole story.
+on `eth0` from anywhere. Port 1022 is dropped by both. `ufw` is inactive and the `iptables`
+`INPUT` policy is `ACCEPT`, so these two tables are the whole story.
 
-> **Drift — fix this before you rely on it.** Neither `edgeguard.nft` nor `edge-guardrail.sh` /
-> `edge-guardrail.service` exists in this repo. `deploy/bootstrap/host-prep/firewall/` carries
-> only the `homelab-fw-edge.*` iptables guardrails. A `vm-1` rebuilt from the DR pack today comes
-> back **without** the nftables allowlist. The admin IP is also hardcoded in `edgeguard.nft`
-> rather than read from `firewall/edge-allowlist.env`.
+> **Drift — resolved 2026-11-19.** Both tables are now under version control in
+> `deploy/bootstrap/host-prep/firewall/`, and `prepare-host.sh` installs them on `ctb-edge-1`.
+> The admin IP is no longer hardcoded: `edgeguard.nft` references
+> `$ADMIN_SSH_ALLOW_IP`, which `prepare-host.sh` renders into
+> `/etc/nftables.d/00-edge-allowlist.nft` from `/etc/edge-allowlist.env`. That generated file is
+> the only place the real IP lives on disk, and it is never committed.
+>
+> `edgeguard.nft` in the repo carries one intentional addition over the file that was live on
+> `vm-1`: a `table inet edgeguard` / `delete table inet edgeguard` prologue, so
+> `nft -f /etc/nftables.conf` is idempotent instead of appending a duplicate copy of every rule.
 
-**R0.1 Capture the live units into the repo** so a rebuild reproduces them, and so you have the
-originals to diff against after the upgrade:
+**R0.1 Diff the live tables against the repo** before you start, so you know the rebuild path and
+the running node still agree, and so you have a baseline to re-diff after the upgrade:
 
 ```bash
-ssh vm-1 'cat /etc/nftables.d/edgeguard.nft' > /tmp/edgeguard.nft
-ssh vm-1 'cat /usr/local/sbin/edge-guardrail.sh' > /tmp/edge-guardrail.sh
-ssh vm-1 'systemctl cat edge-guardrail.service' > /tmp/edge-guardrail.service
-# review, sanitise the admin IP to a CHANGE_ME_ADMIN_IP placeholder, then commit under
-# deploy/bootstrap/host-prep/firewall/
+ssh vm-1 'cat /etc/nftables.d/edgeguard.nft' > /tmp/edgeguard.nft.live
+ssh vm-1 'cat /usr/local/sbin/edge-guardrail.sh' > /tmp/edge-guardrail.sh.live
+
+diff <(sed "s|\$ADMIN_SSH_ALLOW_IP|$(ssh vm-1 'awk -F= "/ADMIN_SSH_ALLOW_IP/{print \$2}" /etc/edge-allowlist.env')|" \
+        deploy/bootstrap/host-prep/firewall/edgeguard.nft) /tmp/edgeguard.nft.live
+diff deploy/bootstrap/host-prep/firewall/edge-guardrail.sh /tmp/edge-guardrail.sh.live
 ```
+
+Expect only the idempotency prologue and comment differences noted above. Anything else is new
+drift: fold it back into the repo files before you upgrade, not after.
 
 **R0.2 Temporarily admit 1022**, immediately before the `vm-1` phase and from your own IP only:
 
@@ -193,7 +202,7 @@ ssh <node> 'md5sum /etc/sysctl.d/*.conf /etc/modules-load.d/*.conf \
 | Sysctl | `99-k3s-calico.conf`, `99-wireguard.conf`, `10-panic.conf`, `10-map-count.conf`, `20-oom-resilience.conf`, `21-sysrq-console.conf`, `99-cloudimg-ipv6.conf` | `rp_filter` on `wg0`, OOM self-heal, SysRq console recovery |
 | Modules | `k3s-calico.conf`, `k8s.conf`, `watchdog.conf` | VXLAN and `br_netfilter` missing at boot |
 | SSH | `99-root-login.conf`, `60-cloudimg-settings.conf` (edge) | **Root login refused — you lose the node** |
-| Firewall | `homelab-fw-*.service`, `k3s-api-lockdown*`, `edgeguard.nft`, `edge-guardrail.service` | API server exposed, or edge allowlist gone |
+| Firewall | `homelab-fw-*.service`, `k3s-api-lockdown*`, `nftables.service` + `edgeguard.nft`, `edge-guardrail.service` | API server exposed, or edge SSH allowlist gone (see gate `L5-D`) |
 | OOM | `oom-resilience-reassert.service` / `.timer` | `vm.panic_on_oom` drifts back to 0 |
 
 > **`99-root-login.conf` is the one that locks you out.** When the upgrade offers to replace
@@ -311,6 +320,11 @@ ssh <node> 'systemctl is-enabled oom-resilience-reassert.timer; systemctl list-t
 ssh <node> 'systemctl is-active homelab-fw-*.service k3s-api-lockdown*.service 2>/dev/null; true'
 ssh vm-1 'systemctl is-active nftables.service edge-guardrail.service; nft list tables'
 # expected: active/exited; both inet edgeguard and inet edge_guardrail present
+ssh vm-1 'nft list table inet edgeguard | grep "dport 22"'
+# expected: ip saddr <operator-home-IP>/32 tcp dport 22 accept
+# A missing edgeguard table leaves public SSH open -- edge_guardrail alone does
+# not restrict the source. Re-run prepare-host.sh; do NOT `systemctl restart
+# nftables.service` (its ExecStop flushes Calico's tables too).
 ```
 
 On `ms-1`, re-check that the lockdown chain's pod/service ACCEPT rules still sit at the **top** of

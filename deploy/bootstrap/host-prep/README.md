@@ -18,12 +18,12 @@ This directory captures that layer as files plus an idempotent
 | Swap | Disabled (`swapoff -a` + commented in `/etc/fstab`) | Required by K3s |
 | Sysctl | `sysctl/99-k3s-calico.conf` + reuses `bootstrap/wireguard/99-wireguard.conf`; edge also keeps `sysctl/10-panic.conf` and `sysctl/99-cloudimg-ipv6.conf` | rp_filter is intentionally `2` globally and `0` on `wg0` -- see "rp_filter caveat" below |
 | Kernel modules | `modules-load/k3s-calico.conf` (br_netfilter, vxlan) on every node; `modules-load/k8s.conf` (overlay, br_netfilter) on home only | Edge runs Traefik with hostNetwork, so the overlay storage driver isn't needed there |
-| SSH | `ssh/99-root-login.conf` on home nodes (`PermitRootLogin prohibit-password`); `ssh/60-cloudimg-settings.conf` on edge | Edge keeps the cloud image SSH dropin; access is gated by `edge_guardrail` nftables allowlist |
+| SSH | `ssh/99-root-login.conf` on home nodes (`PermitRootLogin prohibit-password`); `ssh/60-cloudimg-settings.conf` on edge | Edge keeps the cloud image SSH dropin; public access is gated by the `edgeguard` nftables allowlist |
 | NTP | `systemd-timesyncd` on ms-1 and wk-1; `chronyd` on wk-2; `systemd-timesyncd` on vm-1 | wk-2 uses chrony historically; either daemon is fine |
 | Timezone | `Europe/Paris` on home nodes; `Europe/Berlin` on vm-1 | Captured from live `timedatectl` |
 | Hostname | `ms-1`, `wk-1`, `wk-2`, `ctb-edge-1` (vm-1) | The Kubernetes node name on vm-1 is `ctb-edge-1`, not `vm-1`; SSH alias is `vm-1` |
 | Firewall (home) | `firewall/k3s-api-lockdown.service` + `homelab-fw-ms1.service` (ms-1 only currently) | Lock the K3s API to WireGuard peers; allow established, loopback, SSH, then drop |
-| Firewall (edge) | `firewall/homelab-fw-edge.service` + the existing `platform/traefik/edge-guardrail.sh` | Two units run together; `homelab-fw-edge` blocks Kubernetes-internal ports on the public NIC, `edge-guardrail` is the strict eth0 allowlist |
+| Firewall (edge) | `firewall/edgeguard.nft` (via `nftables.service`) + `firewall/edge-guardrail.service` + `firewall/homelab-fw-edge.service` | Three layers; `edgeguard` (priority -200) holds the operator SSH allowlist, `edge_guardrail` (-50) is the strict eth0 port allowlist, `homelab-fw-edge` adds iptables drops for Kubernetes-internal ports |
 
 ## How to apply
 
@@ -86,17 +86,29 @@ moving on to WireGuard.
 - Cloud-init owns `/etc/hosts`. Do not edit it manually.
 - The Kubernetes node name is `ctb-edge-1`, not `vm-1`. SSH alias `vm-1`
   is purely for operator convenience.
-- `homelab-fw-edge.service` runs alongside the existing
-  `platform/traefik/edge-guardrail.sh`. The two are deliberately separate:
-  `edge-guardrail` is the hard nftables allowlist on `eth0`;
-  `homelab-fw-edge` adds redundant iptables drops for Kubernetes-specific
-  ports (`10250` kubelet, `4789` VXLAN, `30000-32767` NodePort) on the
-  public interface as defence in depth.
-- The `edge-guardrail` allowlist permits SSH from a single home admin IP.
-  That IP is operator-specific (currently `82.123.119.181`). It is **not**
-  committed to Git; the rebuild flow expects the operator to set
-  `ADMIN_SSH_ALLOW_IP` in `firewall/edge-allowlist.env` before applying.
-  See the env example file.
+- The public NIC is filtered by **three** deliberately separate layers,
+  all installed by `prepare-host.sh`:
+
+  | Layer | Table / chain | Priority | Source | Job |
+  |---|---|---|---|---|
+  | 1 | `inet edgeguard` | `-200` | `firewall/edgeguard.nft` via `nftables.service` | The operator SSH allowlist, plus 80/443, 51820, ICMP, overlay interfaces |
+  | 2 | `inet edge_guardrail` | `-50` | `firewall/edge-guardrail.sh` via `edge-guardrail.service` | Strict port allowlist on `eth0`; accepts `tcp dport 22` from **anywhere** |
+  | 3 | iptables `INPUT` | -- | `firewall/homelab-fw-edge.sh` via `homelab-fw-edge.service` | Redundant drops for `10250` kubelet, `4789` VXLAN, `30000-32767` NodePort |
+
+  Layer 1 is the only one that restricts **who** may SSH. Layer 2 restricts
+  only **which ports** are reachable. If `edgeguard` is missing or its table
+  failed to load, public SSH is open to the internet even though
+  `edge-guardrail.service` reports `active`.
+- The `edgeguard` SSH rule reads `ip saddr $ADMIN_SSH_ALLOW_IP tcp dport 22`.
+  The IP is operator-specific and is **not** committed to Git. Set
+  `ADMIN_SSH_ALLOW_IP` in `/etc/edge-allowlist.env` (created from
+  `firewall/edge-allowlist.env.example`) and re-run `prepare-host.sh`; it
+  renders `/etc/nftables.d/00-edge-allowlist.nft`, which `/etc/nftables.conf`
+  globs in **before** `edgeguard.nft`.
+- Never apply the edge nftables with `systemctl restart nftables.service`.
+  That unit's `ExecStop` is `nft flush ruleset`, which also destroys Calico's
+  `ip nat` / `ip mangle` / `arp calico-arp` tables on a node already running
+  K3s. Use `nft -f /etc/nftables.conf`.
 
 ## rp_filter caveat
 

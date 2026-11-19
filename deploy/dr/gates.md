@@ -34,8 +34,11 @@ The verification block at the end of `prepare-host.sh` should print:
 
 ```bash
 ssh ms-1 'systemctl is-active homelab-fw-ms1.service k3s-api-lockdown.service k3s-api-lockdown-allow-cluster.service'
-ssh vm-1 'systemctl is-active homelab-fw-edge.service edge-guardrail.service'
-# expected: active for each
+ssh vm-1 'systemctl is-active homelab-fw-edge.service edge-guardrail.service nftables.service'
+# expected: active (or exited) for each
+ssh vm-1 'nft list tables | grep -c -E "inet (edgeguard|edge_guardrail)"'
+# expected: 2 -- nftables.service active without `inet edgeguard` means the
+# allowlist did not load. See gate L5-D.
 ```
 
 **L0-D** OOM self-heal is actually in effect (not just configured).
@@ -190,6 +193,36 @@ ssh vm-1 'nft list table inet edge_guardrail | head -20'
 # expected: chain "input" with policy drop, accept rules for lo, established,
 # wg0/cali*, ICMP, SSH, 80/443 on eth0
 ```
+
+**L5-D** Edge SSH allowlist is active.
+
+`edge_guardrail` (L5-B) accepts `tcp dport 22` on `eth0` from **anywhere**.
+Only the `inet edgeguard` table at priority -200 restricts the source, so
+L5-B passing does not mean SSH is locked down. Check the allowlist itself:
+
+```bash
+ssh vm-1 'nft list table inet edgeguard | grep "dport 22"'
+# expected: ip saddr <operator-home-IP>/32 tcp dport 22 accept
+# FAIL if: no output, or the rule has no `ip saddr` match
+```
+
+```bash
+ssh vm-1 'systemctl is-active nftables.service; nft list tables | grep -c edgeguard'
+# expected: active (or exited), and 2 (inet edgeguard + inet edge_guardrail)
+```
+
+Prove it from outside the allowlist -- from a phone hotspot or any host
+that is not the operator's home IP:
+
+```bash
+timeout 5 nc -vz <edge-public-IP> 22
+# expected: timeout / no route. A refused or open connection is a FAIL.
+```
+
+If this gate fails, re-run `prepare-host.sh` on vm-1 after confirming
+`ADMIN_SSH_ALLOW_IP` in `/etc/edge-allowlist.env`. Do **not** reach for
+`systemctl restart nftables.service` -- its `ExecStop` is
+`nft flush ruleset` and takes Calico's tables with it.
 
 **L5-C** Public listener answers.
 

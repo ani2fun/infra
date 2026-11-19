@@ -20,7 +20,7 @@ day, how to apply it, and what breaks if it's lost.
 | wk-2 Wi-Fi PSK | wk-2 `/etc/netplan/*.yaml` | Password manager | netplan template fill-in | wk-2 can't reach the LAN; switch to wired Ethernet to recover |
 | K3s join token | (generated on `ms-1`) | `cat /var/lib/rancher/k3s/server/node-token` after server install | install-agent scripts read it | Workers can't join; cluster sits at 1 node |
 | Sealed-Secrets master key | `kube-system` | Off-cluster backup | `scripts/dr/sealed-secrets-key-restore.sh` | Every committed `SealedSecret` becomes garbage; regenerate plaintexts at source |
-| `ADMIN_SSH_ALLOW_IP` | not a secret, but operator-specific | `https://ifconfig.me` | Edit `/etc/edge-allowlist.env` and re-apply edge-guardrail | SSH to vm-1 only via Contabo web console |
+| `ADMIN_SSH_ALLOW_IP` | not a secret, but operator-specific | `https://ifconfig.me` | Edit `/etc/edge-allowlist.env`, re-run `prepare-host.sh` | SSH to vm-1 only via Contabo web console |
 
 ---
 
@@ -331,11 +331,16 @@ The biggest single point of failure. Detailed procedure:
 
 ### `ADMIN_SSH_ALLOW_IP`
 
-Not a secret per se, just operator-specific. The `edge_guardrail`
-nftables allowlist permits SSH from a single IP. On rebuild, look up your
-home IP at `https://ifconfig.me` and put it in
-`deploy/bootstrap/host-prep/firewall/edge-allowlist.env`. Then re-apply
-`platform/traefik/edge-guardrail.sh`.
+Not a secret per se, just operator-specific. The `edgeguard`
+nftables table (priority -200) permits SSH from a single IP. Note that it
+is `edgeguard`, not `edge_guardrail`: the latter accepts `tcp dport 22`
+on `eth0` from anywhere and restricts only which ports are open.
+
+On rebuild, look up your home IP at `https://ifconfig.me`, set
+`ADMIN_SSH_ALLOW_IP=<ip>/32` in `/etc/edge-allowlist.env` on vm-1, and
+re-run `deploy/bootstrap/host-prep/prepare-host.sh`. That renders
+`/etc/nftables.d/00-edge-allowlist.nft` and reloads the table. Verify with
+[gate L5-D](gates.md#l5----traefik).
 
 If your ISP rotates the IP between rebuild and your next remote login,
 SSH will be blocked. Recover via the Contabo web console.

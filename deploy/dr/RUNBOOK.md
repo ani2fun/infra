@@ -89,17 +89,28 @@ Read the verification block at the end. Every entry should be green.
 **Edge specifics.** On vm-1 only:
 
 - The script creates `/etc/edge-allowlist.env` from the example. Edit it
-  and set `ADMIN_SSH_ALLOW_IP=<your-home-IP>/32` before applying
-  `edge-guardrail.sh`.
+  and set `ADMIN_SSH_ALLOW_IP=<your-home-IP>/32`.
 
   ```bash
   vi /etc/edge-allowlist.env
   ```
 
-- The `edge-guardrail.sh` itself lives in `platform/traefik/`; the
-  runbook installs it during Layer 5. Until then, vm-1's public SSH is
-  open per Contabo's default sshd config -- be quick, or apply
-  `edge-guardrail.sh` early if your IP allowlist is correct.
+  Then **re-run `./prepare-host.sh`**. The second run renders
+  `/etc/nftables.d/00-edge-allowlist.nft` from that value and loads the
+  `inet edgeguard` table, which is what actually restricts SSH to your IP.
+  The script will not enforce an allowlist while the placeholder is in
+  place -- until it runs with a real IP, vm-1's public SSH is open per
+  Contabo's default sshd config. Be quick.
+
+- The prep script installs the whole edge firewall now (all three
+  layers): `edgeguard.nft` + `edge-guardrail.service` +
+  `homelab-fw-edge.service`. Layer 5 only verifies it. Check before you
+  close your session:
+
+  ```bash
+  nft list table inet edgeguard | grep 'dport 22'
+  # expected: ip saddr <your-IP>/32 tcp dport 22 accept
+  ```
 
 **Gate:** [L0-A, L0-B, L0-C](gates.md#l0----host-os)
 
@@ -298,23 +309,47 @@ ssh root@ms-1 'kubectl apply -f' deploy/platform/traefik/7-service.yaml
 (or use `kubectl apply -f deploy/platform/traefik/` if your kubectl
 is happy with directory apply.)
 
-### L5.3 Install the edge firewall on vm-1
+### L5.3 Verify the edge firewall on vm-1
 
-Confirm `/etc/edge-allowlist.env` has the right IP from L0.3, then:
+`prepare-host.sh` already installed all three layers at L0.3. This step
+confirms they survived and that the SSH allowlist is real, not a
+placeholder.
 
 ```bash
-scp deploy/platform/traefik/edge-guardrail.sh root@vm-1:/usr/local/sbin/
-scp deploy/platform/traefik/edge-guardrail.service root@vm-1:/etc/systemd/system/
-ssh root@vm-1 'systemctl daemon-reload && systemctl enable --now edge-guardrail.service'
+ssh root@vm-1 'systemctl is-active nftables.service edge-guardrail.service homelab-fw-edge.service'
+# expected: active (or exited) for all three
+
+ssh root@vm-1 'nft list tables | grep -E "edgeguard|edge_guardrail"'
+# expected: both `table inet edgeguard` and `table inet edge_guardrail`
+
+ssh root@vm-1 'nft list table inet edgeguard | grep "dport 22"'
+# expected: ip saddr <your-home-IP>/32 tcp dport 22 accept
 ```
 
-After this enables, your laptop's SSH connection to vm-1 will only work
-if your home IP matches the allowlist. **Test from a second terminal
-before closing the first.**
+If `inet edgeguard` is missing, **public SSH is open to the internet**
+even though `edge-guardrail.service` reports `active`: `edge_guardrail`
+accepts `tcp dport 22` on `eth0` from anywhere by design, and only
+`edgeguard` (priority -200) restricts the source. Fix it before moving
+on:
+
+```bash
+ssh root@vm-1 'grep ADMIN_SSH_ALLOW_IP /etc/edge-allowlist.env'   # must be a real /32
+ssh root@vm-1 'cd /root/host-prep && ./prepare-host.sh'
+```
+
+If you changed the allowlist IP, your current SSH session keeps working
+(`ct state established,related accept`) but a new one may not. **Test
+from a second terminal before closing the first.**
+
+Never apply these with `systemctl restart nftables.service` on a live
+node: that unit's `ExecStop` is `nft flush ruleset` and would destroy
+Calico's tables too. Use `nft -f /etc/nftables.conf`.
 
 **See:** [`../platform/traefik/README.md`](../platform/traefik/README.md)
+and [`../bootstrap/host-prep/README.md`](../bootstrap/host-prep/README.md)
+(edge firewall layers)
 
-**Gate:** [L5-A, L5-B, L5-C](gates.md#l5----traefik)
+**Gate:** [L5-A, L5-B, L5-C, L5-D](gates.md#l5----traefik)
 
 ---
 

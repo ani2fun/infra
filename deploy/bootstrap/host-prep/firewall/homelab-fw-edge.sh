@@ -5,10 +5,11 @@
 #   4789/udp    Calico VXLAN
 #   30000-32767 NodePort range (we don't use NodePorts, but block anyway)
 #
-# Runs alongside platform/traefik/edge-guardrail.sh, which is the strict
-# nftables allowlist on eth0 and the primary defence. This script is
-# secondary belt-and-braces; if edge-guardrail were ever flushed accidentally,
-# these drops would still hold.
+# Runs alongside the two nftables tables in this directory -- edgeguard.nft
+# (priority -200, the operator SSH allowlist) and edge-guardrail.sh
+# (priority -50) -- which are the primary defence on eth0. This script is
+# secondary belt-and-braces; if either nftables table were ever flushed
+# accidentally, these drops would still hold.
 #
 # Idempotent.
 set -euo pipefail

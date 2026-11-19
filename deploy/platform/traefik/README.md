@@ -26,15 +26,21 @@ Traefik is the sole public ingress controller, running on the edge node (`ctb-ed
 
 ## Edge firewall
 
-After Traefik is running, apply the edge firewall guardrail on `vm-1`:
+The edge firewall **moved out of this directory** on 2026-11-19. It now lives
+with the rest of the host firewall, at
+[`../../bootstrap/host-prep/firewall/`](../../bootstrap/host-prep/firewall/),
+and `prepare-host.sh` installs all of it at Layer 0:
 
-```bash
-scp edge-guardrail.sh vm-1:/usr/local/sbin/edge-guardrail.sh
-scp edge-guardrail.service vm-1:/etc/systemd/system/edge-guardrail.service
-ssh vm-1 'chmod +x /usr/local/sbin/edge-guardrail.sh && systemctl daemon-reload && systemctl enable --now edge-guardrail.service'
-```
+| File | Table | Priority | Job |
+|---|---|---|---|
+| `edgeguard.nft` | `inet edgeguard` | `-200` | Operator SSH allowlist (`ip saddr $ADMIN_SSH_ALLOW_IP tcp dport 22`), plus 80/443, 51820/udp, ICMP, overlay interfaces |
+| `edge-guardrail.sh` + `.service` | `inet edge_guardrail` | `-50` | Port allowlist on `eth0`: 22, 80, 443, 51820/udp, ICMP. Accepts `tcp dport 22` from **anywhere** |
+| `homelab-fw-edge.sh` + `.service` | iptables `INPUT` | -- | Redundant drops for 10250, 4789/udp, 30000-32767 |
 
-The guardrail allows only SSH (22), HTTP (80), HTTPS (443), and WireGuard (51820/udp) on the public interface. All other inbound traffic on `eth0` is dropped.
+Only `edgeguard` restricts **who** may SSH. `edge_guardrail` restricts only
+**which ports** are open, so a healthy `edge-guardrail.service` is not
+evidence that SSH is locked down. See
+[gate L5-D](../../dr/gates.md#l5----traefik).
 
 ## Additional scripts
 

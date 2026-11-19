@@ -57,11 +57,29 @@ k3s-api-lockdown.service k3s-api-lockdown-allow-cluster.service`.
 | `firewall/homelab-fw-edge.sh` | `/usr/local/sbin/homelab-fw-edge.sh` (mode 0755) |
 | `firewall/homelab-fw-edge.service` | `/etc/systemd/system/homelab-fw-edge.service` |
 | `firewall/edge-allowlist.env.example` | `/etc/edge-allowlist.env` (operator fills in `ADMIN_SSH_ALLOW_IP`) |
-| `../../platform/traefik/edge-guardrail.sh` (existing) | `/usr/local/sbin/edge-guardrail.sh` |
-| `../../platform/traefik/edge-guardrail.service` (existing) | `/etc/systemd/system/edge-guardrail.service` |
+| `firewall/nftables.conf` | `/etc/nftables.conf` (include-only; globs `/etc/nftables.d/*.nft`) |
+| `firewall/edgeguard.nft` | `/etc/nftables.d/edgeguard.nft` |
+| *(generated)* | `/etc/nftables.d/00-edge-allowlist.nft` -- `define ADMIN_SSH_ALLOW_IP = <ip>`, rendered by `prepare-host.sh` from `/etc/edge-allowlist.env`. Never committed. |
+| `firewall/edge-guardrail.sh` | `/usr/local/sbin/edge-guardrail.sh` (mode 0755) |
+| `firewall/edge-guardrail.service` | `/etc/systemd/system/edge-guardrail.service` |
 
 After install: `systemctl enable --now homelab-fw-edge.service
-edge-guardrail.service`.
+edge-guardrail.service` and `systemctl enable nftables.service`.
+
+The edge allowlist is **three** layers and all three must be present:
+`inet edgeguard` (priority -200, from `edgeguard.nft`, holds the operator SSH
+allowlist), `inet edge_guardrail` (priority -50, from `edge-guardrail.sh`,
+port allowlist only -- it accepts `tcp dport 22` from anywhere), and the
+`homelab-fw-edge` iptables drops. Losing `edgeguard` silently opens public
+SSH while `edge-guardrail.service` still reports `active`.
+
+Apply nftables changes with `nft -f /etc/nftables.conf`, never
+`systemctl restart nftables.service` -- that unit's `ExecStop` is
+`nft flush ruleset` and would take Calico's tables with it.
+
+`edge-guardrail.sh` / `.service` moved here from `deploy/platform/traefik/`
+on 2026-11-19 so the whole edge firewall lives in one directory and
+`prepare-host.sh` installs it with the other units.
 
 The edge gets `20-oom-resilience.conf` like every other node (added 2026-11-19 —
 it has the *weakest* recovery of the four: no hardware watchdog, no BIOS
