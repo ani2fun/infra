@@ -26,7 +26,9 @@ Do this on the operator's laptop before touching any node.
       - `keycloak-admin-secret`, `keycloak-db-secret`
       - wk-2 Wi-Fi PSK (only if wk-2 stays on Wi-Fi)
 - [ ] Cloudflare admin access; ability to regenerate the API token.
-- [ ] Current home IP (`curl ifconfig.me`) for `ADMIN_SSH_ALLOW_IP`.
+- [ ] Current home IPv4 (`curl -4 ifconfig.me`) for `ADMIN_SSH_ALLOW_IP`.
+      The `-4` matters: plain `curl` returns IPv6 on a dual-stack link, and
+      the allowlist rule is IPv4 (`ip saddr`).
 - [ ] Repo cloned at the snapshot revision:
 
       ```bash
@@ -136,7 +138,7 @@ value as `ADMIN_SSH_ALLOW_IP` without the `/32`. Read it from
 `https://ifconfig.me` from the home LAN:
 
 ```bash
-HOME_WAN_IP=$(curl -fsS https://ifconfig.me); echo "$HOME_WAN_IP"
+HOME_WAN_IP=$(curl -4 -fsS https://ifconfig.me); echo "$HOME_WAN_IP"
 ```
 
 Source: [`../inventory/network.yaml`](../inventory/network.yaml).

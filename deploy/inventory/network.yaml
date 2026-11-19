@@ -4,7 +4,8 @@ network:
     router_ip: 192.168.15.1
     # Operator-specific and DYNAMIC -- the ISP rotates it, so a committed
     # value would be wrong by default. Read the live one from
-    # https://ifconfig.me on the home LAN, or from ADMIN_SSH_ALLOW_IP in
+    # `curl -4 -fsS https://ifconfig.me` on the home LAN (IPv4 only), or
+    # from ADMIN_SSH_ALLOW_IP in
     # /etc/edge-allowlist.env on vm-1 (same address, with a /32 suffix).
     home_public_wan_ip: <HOME_WAN_IP>
   wireguard:

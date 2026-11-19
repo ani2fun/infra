@@ -263,7 +263,13 @@ install_edge_nftables() {
   if ! valid_host_cidr "$admin_ip"; then
     EDGEGUARD_SKIPPED=1
     echo "    !! ADMIN_SSH_ALLOW_IP in $env_file is '${admin_ip:-<unset>}'"
-    echo "    !! expected a single host CIDR, e.g. 203.0.113.7/32"
+    echo "    !! expected a single IPv4 host CIDR, e.g. 203.0.113.7/32"
+    case "$admin_ip" in
+      *:*) echo "    !! That looks like an IPv6 address. The edgeguard rule is an IPv4"
+           echo "    !! \`ip saddr\` match, so a v6 address cannot work here. Plain"
+           echo "    !! \`curl ifconfig.me\` returns IPv6 on a dual-stack link -- use"
+           echo "    !! \`curl -4 -fsS https://ifconfig.me\` to get the v4 address." ;;
+    esac
     echo "    !! SKIPPING the edgeguard allowlist -- nothing installed, nothing changed."
     if [[ -f "$defines" ]] && valid_host_cidr "$(awk '{print $NF}' "$defines" 2>/dev/null | tail -1)"; then
       echo "    !! The allowlist from a previous run is still in place and still active."

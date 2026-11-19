@@ -23,7 +23,8 @@ These templates are reconstructed from `_docs/setup-wireguard.md`.
 
 `<HOME_WAN_IP>` is the home router's WAN address. It is operator-specific
 and dynamic -- the ISP rotates it -- so it is not committed here. Read it
-from `https://ifconfig.me` **from the home LAN**, or from
+with `curl -4 -fsS https://ifconfig.me` **from the home LAN** (`-4`
+because plain `curl` may answer with IPv6), or from
 `ADMIN_SSH_ALLOW_IP` in `/etc/edge-allowlist.env` on vm-1, which is the
 same address with a `/32` suffix.
 

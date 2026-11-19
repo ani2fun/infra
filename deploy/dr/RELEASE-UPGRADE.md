@@ -135,7 +135,7 @@ drift: fold it back into the repo files before you upgrade, not after.
 **R0.2 Temporarily admit 1022**, immediately before the `vm-1` phase and from your own IP only:
 
 ```bash
-ADMIN_IP=$(curl -fsS https://ifconfig.me)
+ADMIN_IP=$(curl -4 -fsS https://ifconfig.me)   # -4: plain curl may return IPv6
 ssh vm-1 "nft add rule inet edgeguard input ip saddr ${ADMIN_IP}/32 tcp dport 1022 accept; \
           nft add rule inet edge_guardrail input iifname eth0 ip saddr ${ADMIN_IP}/32 tcp dport 1022 accept"
 # expected: no output. Both are runtime-only — neither file on disk is touched.

@@ -97,7 +97,7 @@ The probe runs *on vm-1*, which cannot look up the home WAN address itself,
 so pass it in. Run the first line from the home LAN:
 
 ```bash
-HOME_WAN_IP=$(curl -fsS https://ifconfig.me)
+HOME_WAN_IP=$(curl -4 -fsS https://ifconfig.me)   # -4: plain curl may return IPv6
 ssh vm-1 "for p in 51820 51821 51822; do timeout 2 nc -uvz $HOME_WAN_IP \$p 2>&1 | head -1; done"
 # expected: each port reports "open" or "succeeded" (UDP probes may say
 # "open|filtered"; the real test is layer 2)
