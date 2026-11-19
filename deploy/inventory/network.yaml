@@ -2,7 +2,11 @@ network:
   lan:
     cidr: 192.168.15.0/24
     router_ip: 192.168.15.1
-    home_public_wan_ip: 82.123.119.181
+    # Operator-specific and DYNAMIC -- the ISP rotates it, so a committed
+    # value would be wrong by default. Read the live one from
+    # https://ifconfig.me on the home LAN, or from ADMIN_SSH_ALLOW_IP in
+    # /etc/edge-allowlist.env on vm-1 (same address, with a /32 suffix).
+    home_public_wan_ip: <HOME_WAN_IP>
   wireguard:
     cidr: 172.27.15.0/24
     mtu: 1420
@@ -30,9 +34,10 @@ network:
     service_fqdn: postgresql.databases-prod.svc.cluster.local
     port: 5432
   router_port_forwards:
-    - public: 82.123.119.181:51820/udp
+    # <HOME_WAN_IP> as above.
+    - public: <HOME_WAN_IP>:51820/udp
       target: wk-1:51820/udp
-    - public: 82.123.119.181:51821/udp
+    - public: <HOME_WAN_IP>:51821/udp
       target: ms-1:51820/udp
-    - public: 82.123.119.181:51822/udp
+    - public: <HOME_WAN_IP>:51822/udp
       target: wk-2:51820/udp

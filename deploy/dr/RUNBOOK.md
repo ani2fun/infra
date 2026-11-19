@@ -127,9 +127,17 @@ The home router forwards three UDP ports to the home nodes:
 
 | Public | Target |
 |---|---|
-| `82.123.119.181:51820/udp` | `wk-1:51820/udp` |
-| `82.123.119.181:51821/udp` | `ms-1:51820/udp` |
-| `82.123.119.181:51822/udp` | `wk-2:51820/udp` |
+| `<HOME_WAN_IP>:51820/udp` | `wk-1:51820/udp` |
+| `<HOME_WAN_IP>:51821/udp` | `ms-1:51820/udp` |
+| `<HOME_WAN_IP>:51822/udp` | `wk-2:51820/udp` |
+
+`<HOME_WAN_IP>` is the home router's WAN address, from L0.3. It is the same
+value as `ADMIN_SSH_ALLOW_IP` without the `/32`. Read it from
+`https://ifconfig.me` from the home LAN:
+
+```bash
+HOME_WAN_IP=$(curl -fsS https://ifconfig.me); echo "$HOME_WAN_IP"
+```
 
 Source: [`../inventory/network.yaml`](../inventory/network.yaml).
 

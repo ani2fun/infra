@@ -9,17 +9,17 @@ SaveConfig = false
 # wk-1 via router forward 51820
 PublicKey = <WK_1_PUBLIC_KEY>
 AllowedIPs = 172.27.15.11/32
-Endpoint = 82.123.119.181:51820
+Endpoint = <HOME_WAN_IP>:51820
 
 [Peer]
 # ms-1 via router forward 51821
 PublicKey = <MS_1_PUBLIC_KEY>
 AllowedIPs = 172.27.15.12/32
-Endpoint = 82.123.119.181:51821
+Endpoint = <HOME_WAN_IP>:51821
 
 [Peer]
 # wk-2 via router forward 51822
 PublicKey = <WK_2_PUBLIC_KEY>
 AllowedIPs = 172.27.15.13/32
-Endpoint = 82.123.119.181:51822
+Endpoint = <HOME_WAN_IP>:51822
 

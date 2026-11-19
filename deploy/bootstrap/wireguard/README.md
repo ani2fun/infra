@@ -21,7 +21,16 @@ These templates are reconstructed from `_docs/setup-wireguard.md`.
 
 ## Router requirements
 
-- `82.123.119.181:51820/udp -> wk-1:51820/udp`
-- `82.123.119.181:51821/udp -> ms-1:51820/udp`
-- `82.123.119.181:51822/udp -> wk-2:51820/udp`
+`<HOME_WAN_IP>` is the home router's WAN address. It is operator-specific
+and dynamic -- the ISP rotates it -- so it is not committed here. Read it
+from `https://ifconfig.me` **from the home LAN**, or from
+`ADMIN_SSH_ALLOW_IP` in `/etc/edge-allowlist.env` on vm-1, which is the
+same address with a `/32` suffix.
+
+- `<HOME_WAN_IP>:51820/udp -> wk-1:51820/udp`
+- `<HOME_WAN_IP>:51821/udp -> ms-1:51820/udp`
+- `<HOME_WAN_IP>:51822/udp -> wk-2:51820/udp`
+
+Only `vm-1.wg0.conf.example` needs this value: the home nodes dial out to
+vm-1's static Contabo address, so they carry no `<HOME_WAN_IP>` endpoint.
 

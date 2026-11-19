@@ -93,10 +93,20 @@ done
 
 **L1-A** Router port-forwards reachable from the edge node.
 
+The probe runs *on vm-1*, which cannot look up the home WAN address itself,
+so pass it in. Run the first line from the home LAN:
+
 ```bash
-ssh vm-1 'for p in 51820 51821 51822; do timeout 2 nc -uvz 82.123.119.181 $p 2>&1 | head -1; done'
+HOME_WAN_IP=$(curl -fsS https://ifconfig.me)
+ssh vm-1 "for p in 51820 51821 51822; do timeout 2 nc -uvz $HOME_WAN_IP \$p 2>&1 | head -1; done"
 # expected: each port reports "open" or "succeeded" (UDP probes may say
 # "open|filtered"; the real test is layer 2)
+```
+
+Away from home, take the same address from vm-1's own allowlist instead:
+
+```bash
+HOME_WAN_IP=$(ssh vm-1 'awk -F= "/^ADMIN_SSH_ALLOW_IP/{print \$2}" /etc/edge-allowlist.env' | cut -d/ -f1)
 ```
 
 **L1-B** Cloudflare A records resolve to the edge IP.
