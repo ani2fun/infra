@@ -404,18 +404,32 @@ down for the whole reboot either way. **That PDB has been removed**
 ([`../apps/codefolio/base/`](../apps/codefolio/base/deployment.yaml)). `replicas: 2` stays: it still
 covers rollouts (`maxUnavailable: 0`) and single-pod crashes, which is all it ever really did here.
 
-Before draining, confirm nothing has reintroduced one:
+Before draining, confirm nothing has reintroduced one. Check Git first — this one needs no
+cluster, no kubeconfig and no VPN, so it works at any point in the upgrade, including from a
+laptop while the edge is down:
+
+```bash
+scripts/dr/check-pdb-pinning.sh
+# expected: PASS: no PodDisruptionBudget covers a single-node-pinned workload.
+# exits 1 and names the workload if a budget has been committed onto a pinned one
+```
+
+Then check what is actually running, which is what the drain will meet:
 
 ```bash
 ssh ms-1 'kubectl get pdb -A'
 # expected: calico-apiserver, calico-typha, typing-trainer — and nothing on an edge-pinned workload
 ```
 
-`typing-trainer` in that list is fine: it has no nodeSelector, so its replicas move between `wk-1`
+The two can disagree, and the disagreement is the useful signal: a budget in Git that Argo has not
+synced yet shows only in the first, and one applied by hand shows only in the second.
+
+`typing-trainer` in the `kubectl` output is fine: it has no nodeSelector, so its replicas move between `wk-1`
 and `wk-2`. It reported `ALLOWED DISRUPTIONS: 1` throughout the 2026-11-18 upgrade and never
 blocked.
 
-If a budget ever does appear on an edge workload, delete it in Git and let Argo sync it away. Do
+If a budget ever does appear on an edge workload, delete it in Git, let Argo sync it away, and
+re-run `check-pdb-pinning.sh` to confirm the repo is clean. Do
 **not** reach for `--disable-eviction` (`U5.1`), and do **not** `kubectl scale` the Deployment down
 by hand first: every app here syncs with `selfHeal: true`, so Argo restores the committed replica
 count and re-arms the deadlock in the middle of your drain.
