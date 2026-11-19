@@ -7,7 +7,7 @@ with the cordon, drain, backup, and verification steps they deliberately omit.
 
 ## Current documented cluster settings
 
-- K3s version: `v1.36.3+k3s1`
+- K3s version: `v1.36.6+k3s1`
 - Server node: `ms-1`
 - Agents: `wk-1`, `wk-2`, `vm-1` (`ctb-edge-1` in docs)
 - Pod CIDR: `10.42.0.0/16`
@@ -17,6 +17,7 @@ with the cordon, drain, backup, and verification steps they deliberately omit.
 - Packaged Traefik: disabled
 - ServiceLB: disabled
 - CNI: Calico VXLAN via Tigera operator
+- Calico version: `v3.33.1`
 - Calico MTU: `1370`
 - Node autodetection: Kubernetes `NodeInternalIP` so WireGuard IPs become node internal IPs
 
