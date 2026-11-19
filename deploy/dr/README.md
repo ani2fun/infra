@@ -42,6 +42,7 @@ A fresh Ubuntu 24.04.4 LTS installer image for each node.
 | [`node-console-recovery.md`](node-console-recovery.md) | A node stopped answering. Triage ladder from "is it the network" through physical console and SysRq REISUB. |
 | [`SNAPSHOT.md`](SNAPSHOT.md) | Frozen state on the day this pack was authored (2026-05-09). Versions, image digests, host facts, Argo CD revisions. **Never edited in place** — it is the historical anchor, and `verify-snapshot.sh` compares against it. |
 | [`SNAPSHOT-2026-08-12.md`](SNAPSHOT-2026-08-12.md) | Later capture: adds the `bytebase` and `dblab` namespaces, drops the retired whoami. |
+| [`SNAPSHOT-2026-11-19.md`](SNAPSHOT-2026-11-19.md) | **Current.** Post-upgrade capture: K3s `v1.36.6+k3s1`, Calico `v3.33.1`, containerd `2.3.7-k3s1.36`, Ubuntu 24.04.5. Compare against this one, not the frozen anchor. |
 | [`gates.md`](gates.md) | Verification commands referenced by ID from the runbook. |
 | [`secret-recovery.md`](secret-recovery.md) | Per-secret decision tree: where the plaintext comes from on rebuild day. |
 | [`sealed-secrets-key-backup.md`](sealed-secrets-key-backup.md) | Backup and restore of the Sealed-Secrets controller master key. |

@@ -1,14 +1,20 @@
 #!/usr/bin/env bash
-# Compare the live cluster's headline versions against deploy/dr/SNAPSHOT.md.
+# Compare the live cluster's headline versions against a snapshot.
 # Reports drift so you can refresh the snapshot before it goes stale in DR.
+#
+# Defaults to deploy/dr/SNAPSHOT.md, the frozen 2026-05-09 anchor. That file is
+# never edited, so after any upgrade it reports drift permanently and by design
+# — it answers "how far from the original build are we?". To check the cluster
+# against the CURRENT expected state instead, pass the newest dated snapshot.
 #
 # Read-only. Exits 0 on no drift, 1 on drift.
 #
 # Usage:
-#   scripts/dr/verify-snapshot.sh
+#   scripts/dr/verify-snapshot.sh                                  # vs the frozen anchor
+#   scripts/dr/verify-snapshot.sh deploy/dr/SNAPSHOT-2026-11-19.md # vs the latest capture
 set -euo pipefail
 
-SNAPSHOT="$(dirname "$0")/../../deploy/dr/SNAPSHOT.md"
+SNAPSHOT="${1:-$(dirname "$0")/../../deploy/dr/SNAPSHOT.md}"
 if [[ ! -f "$SNAPSHOT" ]]; then
   echo "snapshot not found: $SNAPSHOT" >&2
   exit 2
