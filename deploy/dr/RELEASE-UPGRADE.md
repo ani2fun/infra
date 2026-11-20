@@ -57,10 +57,23 @@ done
 # as of 2026-11-19: ms-1 23, wk-1 0, wk-2 23, vm-1 0
 ```
 
-That `ms-1` — the control plane — is one of the two carrying it is the awkward part. A headless
-node does not need the stack at all. Removing it is a legitimate thing to do *before* `R1`, in its
-own change with its own reboot, and it shrinks the release upgrade considerably. It is not part of
-this runbook, and it must never share a window with the release upgrade.
+**Keep it. Do not strip the desktop stack to shrink the upgrade.** `ms-1` and `wk-2` are laptops
+with attached screens, and that desktop is the console recovery path this runbook's pre-flight
+depends on. Removing Xorg and `gdm3` would delete the thing you need on the day the upgrade fails.
+Decided 2026-11-20.
+
+It costs nothing to keep. `systemctl get-default` is already `multi-user.target` on both nodes and
+`gdm.service` is `inactive` — the stack is dormant, not running. It only widens the
+`do-release-upgrade` transition, which `R4` handles by reading the prompts instead of pre-emptying
+the system.
+
+> **The stack is load-bearing for networking, not just for the screen.** NetworkManager is the
+> netplan renderer on both nodes (`01-network-manager-all.yaml`) and `systemd-networkd` is
+> **inactive**, so NM is the only thing configuring the network. `network-manager-gnome` sits in
+> the desktop dependency web. On `wk-2` the default route is **Wi-Fi** (`wlo1`, connection
+> `Macaw-Tucan`), so a removal that takes `network-manager*` with it strands the node somewhere a
+> cable cannot reach it. This is the concrete reason an `autoremove` cascade here is a node-loss
+> event, not an inconvenience.
 
 ---
 
@@ -258,7 +271,7 @@ Answer deliberately:
 |---|---|
 | Third-party sources will be disabled | Accept. K3s, containerd and Calico are **not** apt-managed on any node — verify with `dpkg -l \| grep -iE 'k3s\|containerd'`, which returns nothing — so nothing load-bearing is disabled. Re-enable anything you genuinely need in `R5`. |
 | Replace a modified conffile? | **Keep the local version** for everything in the `R2` table. |
-| Remove obsolete packages? | Yes, but read the list. Stop if it names `wireguard*`, `nftables`, anything `calico`, or the kernel you are currently running. |
+| Remove obsolete packages? | **Read the list before answering.** Stop if it names `network-manager*`, `wpasupplicant`, `netplan.io`, `wireguard*`, `nftables`, anything `calico`, or the kernel you are currently running. On `ms-1` and `wk-2`, NetworkManager is the only active network renderer and `wk-2` is on Wi-Fi — losing it is a node-loss event. Answer **no** and remove packages by hand afterwards if the list is at all unclear. |
 | Restart services without asking? | Yes — the node is drained and K3s is stopped. |
 
 Then reboot:
