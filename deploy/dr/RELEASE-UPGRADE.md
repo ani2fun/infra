@@ -9,8 +9,10 @@ Phases are lettered `R0`–`R8` so they never collide with `UPGRADE.md`'s `U0`�
 [`RUNBOOK.md`](RUNBOOK.md)'s `L0`–`L11`. Verification reuses the gate IDs from
 [`gates.md`](gates.md).
 
-**K3s does not move here.** The target is the same `v1.36.6+k3s1` the cluster already runs, on a
-new OS underneath it. Changing both at once would leave you unable to say which one broke.
+**K3s does not move here.** The target is whatever version the cluster already runs — read it
+from the pin in [`../bootstrap/k3s/install-server-ms-1.sh`](../bootstrap/k3s/install-server-ms-1.sh)
+rather than from this file, which deliberately names no version. Changing the OS and K3s at once
+would leave you unable to say which one broke.
 
 ## Status
 
@@ -360,7 +362,7 @@ ssh <node> 'update-alternatives --query iptables 2>/dev/null | grep Value; iptab
 ```bash
 ssh <node> 'systemctl start k3s 2>/dev/null || systemctl start k3s-agent'
 ssh ms-1 'kubectl get nodes -o wide'
-# expected: the node Ready, still v1.36.6+k3s1, now on the 7.x kernel
+# expected: the node Ready, still at the pinned K3s version, now on the 7.x kernel
 ssh ms-1 'kubectl -n calico-system get pods -o wide | grep <node>'
 # expected: calico-node Running and 1/1 Ready on that node
 ```
@@ -416,7 +418,7 @@ K3s is already stopped by `R3`, so do not restart it just to stop it again.
 
 ```bash
 ssh ms-1 'kubectl get nodes -o wide'
-# expected: 4 rows, all Ready, all v1.36.6+k3s1, all Ubuntu 26.04 kernels
+# expected: 4 rows, all Ready, all at the pinned K3s version, all Ubuntu 26.04 kernels
 ssh ms-1 'kubectl get pods -A --field-selector=status.phase!=Running,status.phase!=Succeeded'
 # expected: empty
 ssh ms-1 'kubectl get application -n argocd'

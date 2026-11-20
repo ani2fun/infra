@@ -7,7 +7,7 @@ with the cordon, drain, backup, and verification steps they deliberately omit.
 
 ## Current documented cluster settings
 
-- K3s version: `v1.36.6+k3s1`
+- K3s version: `v1.37.2+k3s1`
 - Server node: `ms-1`
 - Agents: `wk-1`, `wk-2`, `vm-1` (`ctb-edge-1` in docs)
 - Pod CIDR: `10.42.0.0/16`

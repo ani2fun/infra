@@ -59,6 +59,32 @@ does it cross an Ubuntu LTS boundary — see
       keyboard/monitor for `ms-1`/`wk-1`/`wk-2`, provider web console for `vm-1`.
 - [ ] Roughly two hours, and nobody depending on `*.kakde.eu` during it.
 
+### Gate record — `v1.36.6+k3s1` → `v1.37.2+k3s1`
+
+Both blocking pre-flight gates were checked on **2026-11-20** for this hop, so you do not have to
+redo the research. Re-verify if you execute later than roughly a month from that date.
+
+| Gate | Result | Evidence |
+|---|---|---|
+| Calico covers the target minor | **PASS** | Calico v3.33 is tested against Kubernetes 1.35, 1.36 and 1.37; the cluster runs v3.33.1. [UC](#uc--calico-when-the-target-minor-requires-it) is **skipped**. |
+| No removed APIs in use | **PASS** | `kubectl get --raw /metrics \| grep apiserver_requested_deprecated_apis` returns only `resource="endpoints" version="v1"` with an **empty** `removed_release`, i.e. deprecated with no removal scheduled. The only beta/alpha `apiVersion`s under `deploy/` are `kustomize.config.k8s.io/v1beta1` (client-side), `bitnami.com/v1alpha1` (SealedSecret CRD) and `argoproj.io/v1alpha1` (Argo CD CRDs) — none is a Kubernetes core API. |
+
+Run the deprecated-API check yourself before starting; it is the one gate that can change under you
+as apps are added:
+
+```bash
+ssh ms-1 'kubectl get --raw /metrics | grep "^apiserver_requested_deprecated_apis"'
+# expected: only entries whose removed_release="" — any non-empty removed_release names a
+# release that WILL break you, and must be resolved before the upgrade, not after
+```
+
+Two things in the v1.37 release notes matter here. containerd moves to **v2.3.7**, which the
+cluster already runs, so the runtime is effectively unchanged. And K3s now waits 60 seconds for a
+default route before giving up, instead of entering a systemd restart loop — directly relevant to
+`wk-2`, whose default route is Wi-Fi (`wlo1`) and comes up later than a wired link.
+
+Traefik and flannel bumps in those notes do not apply: both are disabled via `INSTALL_K3S_EXEC`.
+
 **You do not have to finish in one sitting.** Agents running the old K3s against an upgraded
 server is a supported version skew, so it is safe to stop after any node and resume the next day.
 Do not stop for *weeks*, though — the skew guarantee is one minor version.
@@ -208,6 +234,11 @@ already like that.
 ---
 
 ## UC — Calico, when the target minor requires it
+
+> **Skip UC for the 1.36 → 1.37 hop.** Calico v3.33 is tested against Kubernetes 1.35, 1.36 and
+> 1.37 ([Calico v3.33 requirements](https://docs.tigera.io/calico/3.33/getting-started/kubernetes/requirements),
+> checked 2026-11-20), and the cluster already runs v3.33.1. The CNI needs no work for this
+> upgrade — go straight from `U0` to `U1`. UC becomes relevant again at Kubernetes 1.38.
 
 **Goal.** The CNI is on a release whose tested Kubernetes range covers the minor you are about to
 move to — *before* K3s moves.
