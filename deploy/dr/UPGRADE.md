@@ -114,6 +114,18 @@ Each node follows the same shape:
 One disruption per node, not two. That is the whole reason the OS work and the K3s work share a
 window.
 
+**On the drain flags.** `--delete-emptydir-data` is required, not optional: Traefik on the edge and
+eight workloads on `wk-1` (synapse, synapse-go-judge, typing-trainer ×2, metrics-server,
+sealed-secrets-controller, grafana, vmagent) mount `emptyDir`, and the drain refuses with
+`cannot delete Pods with local storage` without it. It discards pod-local scratch only — the
+local-path PVs that hold Postgres and the TSDBs are untouched, and the kubelet restart would lose
+those `emptyDir`s anyway. What the flag actually buys is *ordering*: a graceful `SIGTERM` before the
+restart rather than after it.
+
+`--force` was in these commands until 2026-11-22 and is **not** needed — every evicted pod here is
+controller-managed, and all four drains completed without it. It was removed so the command asks
+for no more privilege than the job requires.
+
 **Pausing kured.** kured ([`../platform/kured/`](../platform/kured/)) cordons, drains and reboots
 `wk-1` and `wk-2` on its own inside 03:00-05:00 Europe/Paris, whenever it finds
 `/var/run/reboot-required`. A node you have just `apt full-upgrade`d and not yet rebooted looks
@@ -166,7 +178,9 @@ server and copying it. `ms-1` is about to be restarted anyway.
 ssh ms-1 'systemctl stop k3s && \
   tar -czf /root/k3s-server-backup-$(date -u +%Y%m%d).tar.gz -C /var/lib/rancher/k3s server && \
   systemctl start k3s && ls -lh /root/k3s-server-backup-*.tar.gz'
-# expected: a tarball of roughly 30-60 MB
+# expected: a tarball of roughly 5-10 MB (6.9 MB on 2026-11-22). The figure here read
+# 30-60 MB until 2026-11-22; that was never measured against this cluster. What matters
+# is not the size but that `tar -tzf` lists server/db/state.db and server/node-token.
 ```
 
 That captures `db/state.db` (the whole cluster state), `node-token` (agents cannot rejoin without
@@ -389,7 +403,7 @@ nodes keep running — kubelet does not need the API server to keep containers a
 
 ```bash
 ssh ms-1 'kubectl cordon ms-1'
-ssh ms-1 'kubectl drain ms-1 --ignore-daemonsets --delete-emptydir-data --force --timeout=300s'
+ssh ms-1 'kubectl drain ms-1 --ignore-daemonsets --delete-emptydir-data --timeout=300s'
 ```
 
 `ms-1` carries a `NoSchedule` control-plane taint, so nothing new lands there, but the drain is
@@ -514,7 +528,7 @@ again.
 
 ```bash
 ssh ms-1 'kubectl cordon wk-2'
-ssh ms-1 'kubectl drain wk-2 --ignore-daemonsets --delete-emptydir-data --force --timeout=300s'
+ssh ms-1 'kubectl drain wk-2 --ignore-daemonsets --delete-emptydir-data --timeout=300s'
 ssh wk-2 'apt-get update && DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=l \
   apt-get -y -o Dpkg::Options::="--force-confold" full-upgrade && apt-get -y autoremove'
 ssh wk-2 "K3S_TOKEN='${TOKEN}' bash -s" < deploy/bootstrap/k3s/install-agent-wk-2.sh
@@ -621,7 +635,7 @@ count and re-arms the deadlock in the middle of your drain.
 
 ```bash
 ssh ms-1 'kubectl cordon ctb-edge-1'
-ssh ms-1 'kubectl drain ctb-edge-1 --ignore-daemonsets --delete-emptydir-data --force --timeout=300s'
+ssh ms-1 'kubectl drain ctb-edge-1 --ignore-daemonsets --delete-emptydir-data --timeout=300s'
 ssh vm-1 'apt-get update && DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=l \
   apt-get -y -o Dpkg::Options::="--force-confold" full-upgrade && apt-get -y autoremove'
 ssh vm-1 "K3S_TOKEN='${TOKEN}' bash -s" < deploy/bootstrap/k3s/install-agent-vm-1.sh
@@ -676,7 +690,7 @@ rather than bypassing the budget — `U4.1` describes the shape that actually ca
 
 ```bash
 ssh ms-1 'kubectl cordon wk-1'
-ssh ms-1 'kubectl drain wk-1 --ignore-daemonsets --delete-emptydir-data --force --timeout=600s'
+ssh ms-1 'kubectl drain wk-1 --ignore-daemonsets --delete-emptydir-data --timeout=600s'
 ssh wk-1 'apt-get update && DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=l \
   apt-get -y -o Dpkg::Options::="--force-confold" full-upgrade && apt-get -y autoremove'
 ssh wk-1 "K3S_TOKEN='${TOKEN}' bash -s" < deploy/bootstrap/k3s/install-agent-wk-1.sh

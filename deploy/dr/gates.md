@@ -146,7 +146,7 @@ done
 
 ```bash
 ssh ms-1 'kubectl get nodes -o wide'
-# expected: 4 rows, all STATUS=Ready, version v1.36.6+k3s1
+# expected: 4 rows, all STATUS=Ready, version v1.37.2+k3s1
 ```
 
 **L3-B** Calico pods Running.
