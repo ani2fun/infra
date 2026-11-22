@@ -66,6 +66,75 @@ expected_k3s="$(snap_version "K3s / kubelet")"
 actual_k3s="$(kubectl_ms1 "get nodes -o jsonpath='{.items[0].status.nodeInfo.kubeletVersion}'" 2>/dev/null || echo unknown)"
 check "K3s kubelet" "$expected_k3s" "$actual_k3s"
 
+# --- Git pin vs live cluster ------------------------------------------------
+#
+# The install scripts' INSTALL_K3S_VERSION pin is the source of truth for what
+# a rebuild would deploy. It can legitimately sit AHEAD of the live cluster
+# (U1 bumps it before any node is touched), but if it ever falls BEHIND, a
+# rebuild from the DR pack would silently downgrade the cluster.
+#
+# Returns the pinned version, e.g. v1.37.2+k3s1
+pinned_k3s() {
+  sed -n 's/.*INSTALL_K3S_VERSION:-\([^}]*\)}.*/\1/p' \
+    "$(dirname "$0")/../../deploy/bootstrap/k3s/install-server-ms-1.sh" | head -1
+}
+
+# Normalise a K3s version into a purely dotted form that sort -V can order:
+#   v1.37.2+k3s1 -> 1.37.2.1
+# The k3s build number becomes a fourth component rather than being discarded.
+# Dropping it would make v1.37.2+k3s2 and v1.37.2+k3s1 compare EQUAL, so a
+# rebuilt patch release — which is exactly the kind of bump that lands without
+# a Kubernetes version change — would be invisible to this check.
+comparable() { printf '%s' "${1#v}" | sed 's/+k3s\([0-9]*\)$/.\1/'; }
+
+# Highest of two dotted versions, using sort -V (version sort). sort -V orders
+# components numerically, so 1.37.10 correctly outranks 1.37.9 where a plain
+# string comparison would not.
+higher_of() { printf '%s\n%s\n' "$1" "$2" | sort -V | tail -1; }
+
+pin_k3s="$(pinned_k3s)"
+pin_sv="$(comparable "$pin_k3s")"
+live_sv="$(comparable "$actual_k3s")"
+
+# Severity here is deliberately asymmetric, because the two mismatch directions
+# mean opposite things:
+#
+#   pin > live   An upgrade is staged and not finished. This is the NORMAL state
+#                between U1 (bump the pins) and U7 (refresh the pack), so it is
+#                INFO, not DRIFT. Marking a documented transient as DRIFT is how
+#                you teach an operator to ignore the word — the same reasoning
+#                the Argo revision block below spells out. The wording carries
+#                the signal instead.
+#
+#   live > pin   The cluster was upgraded and Git was never updated. A rebuild
+#                from the DR pack would install the OLDER version, i.e. silently
+#                downgrade the cluster. This is the most dangerous state the
+#                script can find, and the only one that fails the run.
+#
+# An unreadable pin is a third case, not a comparison: if INSTALL_K3S_VERSION
+# cannot be extracted, the file a rebuild depends on is broken, so that fails
+# too rather than passing quietly.
+if [[ -z "$pin_k3s" ]]; then
+  printf "  DRIFT %-30s could not read INSTALL_K3S_VERSION from install-server-ms-1.sh\n" "K3s Git pin"
+  drift=1
+elif [[ "$actual_k3s" == "unknown" ]]; then
+  # The live version was already reported as drift by check() above; do not
+  # compare against a placeholder and do not double-count it.
+  printf "  INFO %-30s skipped — live version unavailable\n" "K3s pin vs live"
+elif [[ "$pin_sv" == "$live_sv" ]]; then
+  printf "  OK   %-30s = %s (Git and cluster agree)\n" "K3s pin vs live" "$pin_k3s"
+elif [[ "$(higher_of "$pin_sv" "$live_sv")" == "$pin_sv" ]]; then
+  printf "  INFO %-30s pin=%s is AHEAD of live=%s — upgrade staged, not finished\n" \
+    "K3s pin vs live" "$pin_k3s" "$actual_k3s"
+  printf "       %-30s finish it, or revert the pin if the upgrade was abandoned\n" ""
+else
+  printf "  DRIFT %-30s pin=%s is BEHIND live=%s\n" "K3s pin vs live" "$pin_k3s" "$actual_k3s"
+  printf "        %-30s a rebuild from this repo would DOWNGRADE the cluster — bump the pin\n" ""
+  drift=1
+fi
+
+# --- end Git pin vs live ----------------------------------------------------
+
 # cert-manager Helm chart. Matched by grepping the snapshot for the live chart
 # string rather than parsing a specific cell — the chart name carries its own
 # version (cert-manager-v1.19.1), so presence anywhere in the file is enough.
