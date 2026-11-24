@@ -1,8 +1,24 @@
 # Additional packages on the edge node (vm-1 / ctb-edge-1).
 # Comment lines and blanks are ignored.
 
-# Virtual machine kernel (Contabo image)
+# Virtual machine kernel (Contabo image).
+#
+# Both metas are listed on purpose. `linux-virtual` tracks the GA series the
+# Contabo image ships (6.8); `linux-virtual-hwe-24.04` tracks the HWE series
+# (7.0.0-43 as of 2026-11-24), which is what the three home nodes already run.
+# Keeping both means both series keep receiving updates, and the GA kernel stays
+# installed as a rollback target instead of being autoremoved.
+#
+# `virtual`, not `generic`. Both carry the same upstream kernel, but the generic
+# flavour pulls roughly 30 extra linux-firmware-* packages for AMD/NVIDIA
+# graphics and Broadcom/MediaTek wireless — none of which exist on a VPS.
+# Measured on 2026-11-24: generic wanted 46 packages, virtual 16.
+#
+# prepare-host.sh installs with --no-install-recommends, which is fine here:
+# linux-image-virtual-hwe-24.04 and linux-headers-virtual-hwe-24.04 are both
+# Depends. Only linux-tools-* and ubuntu-kernel-accessories are skipped.
 linux-virtual
+linux-virtual-hwe-24.04
 
 # Cloud-init is preinstalled by the Contabo image; listed for completeness so
 # the script does not remove it.
@@ -15,3 +31,11 @@ cloud-init
 # - SSH access is gated by the edge_guardrail nftables allowlist, which
 #   permits SSH only from a specific home IP. See
 #   firewall/edge-allowlist.env.example.
+# - The Contabo image sets GRUB_TIMEOUT=0 with GRUB_TIMEOUT_STYLE=hidden, so no
+#   boot menu is drawn. Older kernels stay installed but are unreachable at boot
+#   on a node whose only console is the provider's VNC. Before rebooting this
+#   node onto a new kernel, give it a visible menu temporarily:
+#     sed -i 's/^GRUB_TIMEOUT=0/GRUB_TIMEOUT=5/; s/^GRUB_TIMEOUT_STYLE=hidden/GRUB_TIMEOUT_STYLE=menu/' \
+#       /etc/default/grub && update-grub
+#   Back up /etc/default/grub first and restore it afterwards, or decide to keep
+#   the menu permanently.

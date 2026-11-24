@@ -13,7 +13,7 @@ This directory captures that layer as files plus an idempotent
 | Concern | What | Notes |
 |---|---|---|
 | OS | Ubuntu 24.04.4 LTS | Server install on `vm-1`; desktop or server on home nodes |
-| Kernel | HWE on home (`linux-generic-hwe-24.04`); `linux-virtual` on edge | Captured running kernels: home `6.17.x`, edge `6.8.x` |
+| Kernel | HWE everywhere: `linux-generic-hwe-24.04` on home, `linux-virtual-hwe-24.04` on edge (alongside `linux-virtual`, which keeps the GA series as a rollback target) | All four nodes run `7.0.0-43-generic` as of 2026-11-24. The edge moved from the GA `6.8` series to HWE on that date; see `packages-edge.txt` for why `virtual` rather than `generic` |
 | Packages | `packages-common.txt` (all) + `packages-home.txt` (ms-1/wk-1/wk-2) or `packages-edge.txt` (vm-1) | Pulled from live `apt-mark showmanual` |
 | Swap | Disabled (`swapoff -a` + commented in `/etc/fstab`) | Required by K3s |
 | Sysctl | `sysctl/99-k3s-calico.conf` + reuses `bootstrap/wireguard/99-wireguard.conf`; edge also keeps `sysctl/10-panic.conf` and `sysctl/99-cloudimg-ipv6.conf` | rp_filter is intentionally `2` globally and `0` on `wg0` -- see "rp_filter caveat" below |
